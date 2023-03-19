@@ -1,9 +1,11 @@
 import discord
+import random
 from discord import Message as DiscordMessage
 import logging
 from src.base import Message, Conversation
 from src.constants import (
     BOT_INVITE_URL,
+    TENOR_KEY,
     DISCORD_BOT_TOKEN,
     EXAMPLE_CONVOS,
     ACTIVATE_THREAD_PREFX,
@@ -25,6 +27,7 @@ from src.moderation import (
     send_moderation_blocked_message,
     send_moderation_flagged_message,
 )
+import requests
 
 logging.basicConfig(
     format="[%(asctime)s] [%(filename)s:%(lineno)d] %(message)s", level=logging.INFO
@@ -45,7 +48,7 @@ async def on_ready():
     for c in EXAMPLE_CONVOS:
         messages = []
         for m in c.messages:
-            if m.user == "Lenard":
+            if m.user == "MicMaster":
                 messages.append(Message(user=client.user.name, text=m.text))
             else:
                 messages.append(m)
@@ -132,7 +135,7 @@ async def chat_command(int: discord.Interaction, message: str):
             )
             # send the result
             await process_response(
-                user=user, thread=thread, response_data=response_data
+                user=user, channel=thread, response_data=response_data
             )
     except Exception as e:
         logger.exception(e)
@@ -145,6 +148,7 @@ async def chat_command(int: discord.Interaction, message: str):
 @client.event
 async def on_message(message: DiscordMessage):
     try:
+        channel = message.channel
         # block servers not in allow list
         if should_block(guild=message.guild):
             return
@@ -153,8 +157,66 @@ async def on_message(message: DiscordMessage):
         if message.author == client.user:
             return
 
-        # ignore messages not in a thread
-        channel = message.channel
+        # checks for gif requests
+        if message.content.startswith('!gif'):
+            searchTerm = message.content[5:]
+            gif_url = await get_gif(searchTerm)
+            await message.channel.send(gif_url)
+
+        # checks for good mornings
+        if message.content.startswith('!gm') or message.content.startswith('!story'):
+            channel_messages = [
+                discord_message_to_message(message)
+            ]
+            channel_messages = [x for x in channel_messages if x is not None]
+            channel_messages.reverse()
+
+            async with channel.typing():
+                response_data = await generate_completion_response(
+                    messages=channel_messages, user=message.author
+                )
+
+            if is_last_message_stale(
+                    interaction_message=message,
+                    last_message=channel.last_message,
+                    bot_id=client.user.id,
+            ):
+                # there is another message and its not from us, so ignore this response
+                return
+
+            # send response
+            await process_response(
+                user=message.author, channel=channel, response_data=response_data
+            )
+
+        # checks for recaps, looks at the last 50 messages and says something about them
+        if message.content.startswith('!recap'):
+            channel_messages = [
+                discord_message_to_message(message)
+                async for message in channel.history(limit=50)
+            ]
+            channel_messages = [x for x in channel_messages if x is not None]
+            channel_messages.reverse()
+
+            async with channel.typing():
+                response_data = await generate_completion_response(
+                    messages=channel_messages, user=message.author
+                )
+
+            if is_last_message_stale(
+                    interaction_message=message,
+                    last_message=channel.last_message,
+                    bot_id=client.user.id,
+            ):
+                # there is another message and its not from us, so ignore this response
+                return
+
+            # send response
+            await process_response(
+                user=message.author, channel=channel, response_data=response_data
+            )
+
+        # ignore other messages not in a thread
         if not isinstance(channel, discord.Thread):
             return
 
@@ -258,10 +320,28 @@ async def on_message(message: DiscordMessage):
 
         # send response
         await process_response(
-            user=message.author, thread=thread, response_data=response_data
+            user=message.author, channel=thread, response_data=response_data
         )
     except Exception as e:
         logger.exception(e)
+
+async def on_member_join(member):
+    channel = discord.utils.get(member.guild.channels, name="general")
+    await channel.send(f"{member.mention} has just joined the server!")
+
+async def get_gif(searchTerm):
+    print("https://tenor.googleapis.com/v2/search?q={}&key={}&limit=50".format(searchTerm, TENOR_KEY))
+    response = requests.get("https://tenor.googleapis.com/v2/search?q={}&key={}&limit=50".format(searchTerm, TENOR_KEY))
+    data = response.json()
+    gifs = data['results']
+
+    if len(gifs) == 0:
+        return None
+
+    random_gif = random.choice(gifs)
+    gif_url = random_gif['media_formats']['gif']['url']
+
+    return gif_url
 
 
 client.run(DISCORD_BOT_TOKEN)

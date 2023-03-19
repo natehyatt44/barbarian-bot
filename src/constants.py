@@ -21,6 +21,7 @@ EXAMPLE_CONVOS = CONFIG.example_conversations
 DISCORD_BOT_TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 DISCORD_CLIENT_ID = os.environ["DISCORD_CLIENT_ID"]
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+TENOR_KEY = os.environ["TENOR_KEY"]
 
 ALLOWED_SERVER_IDS: List[int] = []
 server_ids = os.environ["ALLOWED_SERVER_IDS"].split(",")

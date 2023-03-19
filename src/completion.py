@@ -1,6 +1,7 @@
 from enum import Enum
 from dataclasses import dataclass
 import openai
+from typing import Union
 from src.moderation import moderate_message
 from typing import Optional, List
 from src.constants import (
@@ -98,7 +99,7 @@ async def generate_completion_response(
 
 
 async def process_response(
-    user: str, thread: discord.Thread, response_data: CompletionData
+    user: str, channel: Union[discord.Thread, discord.TextChannel], response_data: CompletionData
 ):
     status = response_data.status
     reply_text = response_data.reply_text
@@ -106,7 +107,7 @@ async def process_response(
     if status is CompletionResult.OK or status is CompletionResult.MODERATION_FLAGGED:
         sent_message = None
         if not reply_text:
-            sent_message = await thread.send(
+            sent_message = await channel.send(
                 embed=discord.Embed(
                     description=f"**Invalid response** - empty response",
                     color=discord.Color.yellow(),
@@ -115,17 +116,17 @@ async def process_response(
         else:
             shorter_response = split_into_shorter_messages(reply_text)
             for r in shorter_response:
-                sent_message = await thread.send(r)
+                sent_message = await channel.send(r)
         if status is CompletionResult.MODERATION_FLAGGED:
             await send_moderation_flagged_message(
-                guild=thread.guild,
+                guild=channel.guild,
                 user=user,
                 flagged_str=status_text,
                 message=reply_text,
                 url=sent_message.jump_url if sent_message else "no url",
             )
 
-            await thread.send(
+            await channel.send(
                 embed=discord.Embed(
                     description=f"⚠️ **This conversation has been flagged by moderation.**",
                     color=discord.Color.yellow(),
@@ -133,31 +134,33 @@ async def process_response(
             )
     elif status is CompletionResult.MODERATION_BLOCKED:
         await send_moderation_blocked_message(
-            guild=thread.guild,
+            guild=channel.guild,
             user=user,
             blocked_str=status_text,
             message=reply_text,
         )
 
-        await thread.send(
+        await channel.send(
             embed=discord.Embed(
                 description=f"❌ **The response has been blocked by moderation.**",
                 color=discord.Color.red(),
             )
         )
     elif status is CompletionResult.TOO_LONG:
-        await close_thread(thread)
+        if isinstance(channel, discord.Thread):
+            await close_thread(channel)
     elif status is CompletionResult.INVALID_REQUEST:
-        await thread.send(
+        await channel.send(
             embed=discord.Embed(
                 description=f"**Invalid request** - {status_text}",
                 color=discord.Color.yellow(),
             )
         )
     else:
-        await thread.send(
+        await channel.send(
             embed=discord.Embed(
                 description=f"**Error** - {status_text}",
                 color=discord.Color.yellow(),
             )
         )
+
