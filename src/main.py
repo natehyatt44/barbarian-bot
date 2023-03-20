@@ -48,7 +48,7 @@ async def on_ready():
     for c in EXAMPLE_CONVOS:
         messages = []
         for m in c.messages:
-            if m.user == "MicMaster":
+            if m.user == "B-TeamChairMan":
                 messages.append(Message(user=client.user.name, text=m.text))
             else:
                 messages.append(m)
@@ -160,6 +160,8 @@ async def on_message(message: DiscordMessage):
         # checks for gif requests
         if message.content.startswith('!gif'):
             searchTerm = message.content[5:]
+            if len(searchTerm) == 0:
+                searchTerm = 'WWF Wrestling'
             gif_url = await get_gif(searchTerm)
             await message.channel.send(gif_url)
 
