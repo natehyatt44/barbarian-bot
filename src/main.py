@@ -28,6 +28,12 @@ from src.moderation import (
     send_moderation_flagged_message,
 )
 import requests
+import datetime
+import pytz
+# set the timezone to Mountain Standard Time (MST)
+mst = pytz.timezone('US/Mountain')
+# get the current datetime in MST
+now = datetime.datetime.now(mst)
 
 logging.basicConfig(
     format="[%(asctime)s] [%(filename)s:%(lineno)d] %(message)s", level=logging.INFO
@@ -54,7 +60,6 @@ async def on_ready():
                 messages.append(m)
         completion.MY_BOT_EXAMPLE_CONVOS.append(Conversation(messages=messages))
     await tree.sync()
-
 
 # /chat message:
 @tree.command(name="chat", description="Create a new thread for conversation")
@@ -166,7 +171,7 @@ async def on_message(message: DiscordMessage):
             await message.channel.send(gif_url)
 
         # checks for good mornings
-        if message.content.startswith('!gm') or message.content.startswith('!story'):
+        if message.content.startswith('!gm') or message.content.startswith('!story') or message.content.startswith('!chat'):
             channel_messages = [
                 discord_message_to_message(message)
             ]
