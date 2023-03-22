@@ -41,6 +41,7 @@ logging.basicConfig(
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True
 
 client = discord.Client(intents=intents)
 tree = discord.app_commands.CommandTree(client)
@@ -332,9 +333,23 @@ async def on_message(message: DiscordMessage):
     except Exception as e:
         logger.exception(e)
 
-async def on_member_join(member):
+@client.event
+async def on_member_join(member: discord.Member):
     channel = discord.utils.get(member.guild.channels, name="general")
-    await channel.send(f"{member.mention} has just joined the server!")
+    await channel.send(f"Looks like {member.mention} has joined the server!")
+    join_message = [
+        Message(user=member.mention, text=f"""Hey B-TeamChairMan its me {member.mention}, 
+                             I am new here can I get big welcome greeting and can you @tag me in the post! Also how do I interact with you?""")
+        ]
+
+    async with channel.typing():
+        response_data = await generate_completion_response(
+            messages=join_message, user=member.mention
+        )
+    # send response
+    await process_response(
+        user=member.mention, channel=channel, response_data=response_data
+    )
 
 async def get_gif(searchTerm):
     print("https://tenor.googleapis.com/v2/search?q={}&key={}&limit=50".format(searchTerm, TENOR_KEY))
