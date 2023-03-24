@@ -339,12 +339,12 @@ async def on_member_join(member: discord.Member):
     await channel.send(f"Looks like {member.mention} has joined the server!")
     join_message = [
         Message(user=member.mention, text=f"""Hey B-TeamChairMan its me {member.mention}, 
-                             I am new here can I get big welcome greeting and can you @tag me in the post! Also how do I interact with you?""")
+                             I am new here can I get big welcome greeting! Also how do I interact with you?""")
         ]
 
     async with channel.typing():
         response_data = await generate_completion_response(
-            messages=join_message, user=member.mentilson
+            messages=join_message, user=member.mention
         )
     # send response
     await process_response(
