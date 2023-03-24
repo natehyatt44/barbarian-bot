@@ -335,7 +335,7 @@ async def on_message(message: DiscordMessage):
 
 @client.event
 async def on_member_join(member: discord.Member):
-    channel = discord.utils.get(member.guild.channels, name="general")
+    channel = discord.utils.get(member.guild.channels, name="✨°general")
     await channel.send(f"Looks like {member.mention} has joined the server!")
     join_message = [
         Message(user=member.mention, text=f"""Hey B-TeamChairMan its me {member.mention}, 
@@ -344,7 +344,7 @@ async def on_member_join(member: discord.Member):
 
     async with channel.typing():
         response_data = await generate_completion_response(
-            messages=join_message, user=member.mention
+            messages=join_message, user=member.mentilson
         )
     # send response
     await process_response(
