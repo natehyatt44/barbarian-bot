@@ -62,6 +62,9 @@ async def on_ready():
         completion.MY_BOT_EXAMPLE_CONVOS.append(Conversation(messages=messages))
     await tree.sync()
 
+    # # Add this line to start the check_inactivity function as a background task
+    # client.loop.create_task(check_inactivity())
+
 # /chat message:
 @tree.command(name="chat", description="Create a new thread for conversation")
 @discord.app_commands.checks.has_permissions(send_messages=True)
@@ -153,6 +156,8 @@ async def chat_command(int: discord.Interaction, message: str):
 # calls for each message
 @client.event
 async def on_message(message: DiscordMessage):
+    # # Add this line at the beginning of the on_message event
+    # check_inactivity.last_active[message.channel.id] = datetime.datetime.now(mst)
     try:
         channel = message.channel
         # block servers not in allow list
@@ -339,7 +344,7 @@ async def on_member_join(member: discord.Member):
     await channel.send(f"Looks like {member.mention} has joined the server!")
     join_message = [
         Message(user=member.mention, text=f"""Hey B-TeamChairMan its me {member.mention}, 
-                             I am new here can I get big welcome greeting! Also how do I interact with you?""")
+                             I am new here can I get big welcome greeting from BarbarianInc? """)
         ]
 
     async with channel.typing():
@@ -364,6 +369,25 @@ async def get_gif(searchTerm):
     gif_url = random_gif['media_formats']['gif']['url']
 
     return gif_url
+
+# async def check_inactivity():
+#     inactivity_threshold = 5 #* 60 * 60  # 5 hours in seconds
+#     last_active = {}
+#
+#     while True:
+#         await asyncio.sleep(60)  # Check every minute
+#
+#         for guild in client.guilds:
+#             for channel in guild.text_channels:
+#                 if channel.id not in last_active:
+#                     last_active[channel.id] = datetime.datetime.now(mst)
+#
+#                 time_since_last_active = datetime.datetime.now(mst) - last_active[channel.id]
+#                 if time_since_last_active.total_seconds() >= inactivity_threshold:
+#                     last_active[channel.id] = datetime.datetime.now(mst)
+#                     await channel.send("⏰ The champ is here")
+
+
 
 
 client.run(DISCORD_BOT_TOKEN)

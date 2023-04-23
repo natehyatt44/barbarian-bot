@@ -24,7 +24,7 @@ def discord_message_to_message(message: DiscordMessage) -> Optional[Message]:
             return Message(user=field.name, text=field.value)
     else:
         if message.content.startswith('!gm'):
-            return Message(user=message.author.name, text='Good Morning Man! How does a wrestler like you start the day?')
+            return Message(user=message.author.name, text='Good Morning Chairman!')
         elif message.content.startswith('!story'):
             return Message(user=message.author.name, text='Tell me your best story')
         elif message.content.startswith('!chat'):
