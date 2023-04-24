@@ -62,8 +62,8 @@ async def on_ready():
         completion.MY_BOT_EXAMPLE_CONVOS.append(Conversation(messages=messages))
     await tree.sync()
 
-    # # Add this line to start the check_inactivity function as a background task
-    # client.loop.create_task(check_inactivity())
+    # Add this line to start the check_inactivity function as a background task
+    client.loop.create_task(check_inactivity())
 
 # /chat message:
 @tree.command(name="chat", description="Create a new thread for conversation")
@@ -156,8 +156,6 @@ async def chat_command(int: discord.Interaction, message: str):
 # calls for each message
 @client.event
 async def on_message(message: DiscordMessage):
-    # # Add this line at the beginning of the on_message event
-    # check_inactivity.last_active[message.channel.id] = datetime.datetime.now(mst)
     try:
         channel = message.channel
         # block servers not in allow list
@@ -370,24 +368,38 @@ async def get_gif(searchTerm):
 
     return gif_url
 
-# async def check_inactivity():
-#     inactivity_threshold = 5 #* 60 * 60  # 5 hours in seconds
-#     last_active = {}
-#
-#     while True:
-#         await asyncio.sleep(60)  # Check every minute
-#
-#         for guild in client.guilds:
-#             for channel in guild.text_channels:
-#                 if channel.id not in last_active:
-#                     last_active[channel.id] = datetime.datetime.now(mst)
-#
-#                 time_since_last_active = datetime.datetime.now(mst) - last_active[channel.id]
-#                 if time_since_last_active.total_seconds() >= inactivity_threshold:
-#                     last_active[channel.id] = datetime.datetime.now(mst)
-#                     await channel.send("⏰ The champ is here")
+async def check_inactivity():
+    inactivity_threshold = 6 * 60 * 60  # 6 hours in seconds
+    gif_threshold = 10 * 60 * 60  # 10 hours in seconds
+    target_guild_id = 1053818243732754513
 
+    while True:
+        await asyncio.sleep(60)  # Check every minute
 
+        target_guild = client.get_guild(target_guild_id)
+        target_channel = discord.utils.get(target_guild.channels, name="✨°general")
+        if target_channel is None:
+            continue
+
+        if target_channel.id not in check_inactivity.last_active:
+            check_inactivity.last_active[target_channel.id] = datetime.datetime.now(mst)
+
+        if target_channel.id not in check_inactivity.last_gif:
+            check_inactivity.last_gif[target_channel.id] = datetime.datetime.now(mst) - datetime.timedelta(seconds=gif_threshold)
+
+        time_since_last_active = datetime.datetime.now(mst) - check_inactivity.last_active[target_channel.id]
+        time_since_last_gif = datetime.datetime.now(mst) - check_inactivity.last_gif[target_channel.id]
+
+        if time_since_last_active.total_seconds() >= inactivity_threshold:
+            if time_since_last_gif.total_seconds() >= gif_threshold:
+                check_inactivity.last_gif[target_channel.id] = datetime.datetime.now(mst)
+                gif_url = await get_gif("hello chat")
+                if gif_url is not None:
+                    await target_channel.send(gif_url)
+
+# Initialize the last_active and last_gif dictionaries as attributes of the check_inactivity function
+check_inactivity.last_active = {}
+check_inactivity.last_gif = {}
 
 
 client.run(DISCORD_BOT_TOKEN)
