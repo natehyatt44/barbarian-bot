@@ -30,6 +30,12 @@ from src.moderation import (
 import requests
 import datetime
 import pytz
+import boto3
+import csv
+import uuid
+from io import StringIO
+import re
+
 # set the timezone to Mountain Standard Time (MST)
 mst = pytz.timezone('US/Mountain')
 # get the current datetime in MST
@@ -45,7 +51,6 @@ intents.members = True
 
 client = discord.Client(intents=intents)
 tree = discord.app_commands.CommandTree(client)
-
 
 @client.event
 async def on_ready():
@@ -63,7 +68,7 @@ async def on_ready():
     await tree.sync()
 
     # Add this line to start the check_inactivity function as a background task
-    client.loop.create_task(check_inactivity())
+    #client.loop.create_task(check_inactivity())
 
 # /chat message:
 @tree.command(name="chat", description="Create a new thread for conversation")
@@ -368,38 +373,99 @@ async def get_gif(searchTerm):
 
     return gif_url
 
-async def check_inactivity():
-    inactivity_threshold = 6 * 60 * 60  # 6 hours in seconds
-    gif_threshold = 10 * 60 * 60  # 10 hours in seconds
-    target_guild_id = 1053818243732754513
+# async def check_inactivity():
+#     inactivity_threshold = 6 * 60 * 60  # 6 hours in seconds
+#     gif_threshold = 10 * 60 * 60  # 10 hours in seconds
+#     target_guild_id = 1053818243732754513
+#
+#     while True:
+#         await asyncio.sleep(60)  # Check every minute
+#
+#         target_guild = client.get_guild(target_guild_id)
+#         target_channel = discord.utils.get(target_guild.channels, name="✨°general")
+#         if target_channel is None:
+#             continue
+#
+#         if target_channel.id not in check_inactivity.last_active:
+#             check_inactivity.last_active[target_channel.id] = datetime.datetime.now(mst)
+#
+#         if target_channel.id not in check_inactivity.last_gif:
+#             check_inactivity.last_gif[target_channel.id] = datetime.datetime.now(mst) - datetime.timedelta(seconds=gif_threshold)
+#
+#         time_since_last_active = datetime.datetime.now(mst) - check_inactivity.last_active[target_channel.id]
+#         time_since_last_gif = datetime.datetime.now(mst) - check_inactivity.last_gif[target_channel.id]
+#
+#         if time_since_last_active.total_seconds() >= inactivity_threshold:
+#             if time_since_last_gif.total_seconds() >= gif_threshold:
+#                 check_inactivity.last_gif[target_channel.id] = datetime.datetime.now(mst)
+#                 gif_url = await get_gif("hello chat")
+#                 if gif_url is not None:
+#                     await target_channel.send(gif_url)
+#
+# # Initialize the last_active and last_gif dictionaries as attributes of the check_inactivity function
+# check_inactivity.last_active = {}
+# check_inactivity.last_gif = {}
 
-    while True:
-        await asyncio.sleep(60)  # Check every minute
+import re
 
-        target_guild = client.get_guild(target_guild_id)
-        target_channel = discord.utils.get(target_guild.channels, name="✨°general")
-        if target_channel is None:
-            continue
 
-        if target_channel.id not in check_inactivity.last_active:
-            check_inactivity.last_active[target_channel.id] = datetime.datetime.now(mst)
+@tree.command(name="accountcode", description="Create or Retrieve your Lost Ones Account Code")
+async def accountCode(ctx, account_id: str):
+    allowed_channel_id = 1105203074039042179  # Replace with the actual channel ID
+    if ctx.channel_id == allowed_channel_id:
+        await process_account_code(ctx, account_id)
+    else:
+        await ctx.response.send_message("This command can only be used in the '🧩°the-lost-ones' channel")
 
-        if target_channel.id not in check_inactivity.last_gif:
-            check_inactivity.last_gif[target_channel.id] = datetime.datetime.now(mst) - datetime.timedelta(seconds=gif_threshold)
 
-        time_since_last_active = datetime.datetime.now(mst) - check_inactivity.last_active[target_channel.id]
-        time_since_last_gif = datetime.datetime.now(mst) - check_inactivity.last_gif[target_channel.id]
+async def process_account_code(ctx, account_id: str):
+    if not re.match(r"0\.0\.\d{5,}", account_id):
+        await ctx.response.send_message(
+            "Invalid Account ID format. The account ID must be numbers and follow this format: '0.0.xxxxxx'")
+        return
 
-        if time_since_last_active.total_seconds() >= inactivity_threshold:
-            if time_since_last_gif.total_seconds() >= gif_threshold:
-                check_inactivity.last_gif[target_channel.id] = datetime.datetime.now(mst)
-                gif_url = await get_gif("hello chat")
-                if gif_url is not None:
-                    await target_channel.send(gif_url)
+    s3 = boto3.client('s3')
+    bucket_name = 'lost-ones-upload32737-staging'
+    object_key = f'public/accountCode/accountCodes.csv'
 
-# Initialize the last_active and last_gif dictionaries as attributes of the check_inactivity function
-check_inactivity.last_active = {}
-check_inactivity.last_gif = {}
+    try:
+        # Download the CSV from S3
+        response = s3.get_object(Bucket=bucket_name, Key=object_key)
+        csv_content = response['Body'].read().decode('utf-8')
+
+        # Read CSV content
+        csv_reader = csv.reader(StringIO(csv_content), delimiter='|')
+        account_codes = {row[0]: row[1] for row in csv_reader}
+
+        # Generate a UUID if the account_id does not exist
+        if account_id not in account_codes:
+            account_codes[account_id] = str(uuid.uuid4())
+            note = "Created"
+
+            # Save the updated CSV back to S3
+            csv_out = StringIO()
+            csv_writer = csv.writer(csv_out, delimiter='|')
+            for account_id, account_code in account_codes.items():
+                csv_writer.writerow([account_id, account_code])
+
+            s3.put_object(
+                Bucket=bucket_name, Key=object_key, Body=csv_out.getvalue()
+            )
+        else:
+            note = "Retrieved"
+
+        # Create an embed for the accountCode response
+        embed = discord.Embed(
+            title="Account Code",
+            description=f"The Account Code for {account_id} is: {account_codes[account_id]}\nNote: {note}",
+            color=discord.Color.blue()
+        )
+
+        # Send the accountCode as an embed
+        await ctx.response.send_message(embed=embed)
+
+    except Exception as e:
+        await ctx.response.send_message(f"An error occurred while processing the account code: {str(e)}")
 
 
 client.run(DISCORD_BOT_TOKEN)
