@@ -456,8 +456,8 @@ async def process_account_code(ctx, account_id: str):
 
         # Create an embed for the accountCode response
         embed = discord.Embed(
-            title="Account Code",
-            description=f"The Account Code for {account_id} is: {account_codes[account_id]}\nNote: {note}",
+            title=f"{note} {account_id} Account Code",
+            description=f"{account_codes[account_id]}",
             color=discord.Color.blue()
         )
 
