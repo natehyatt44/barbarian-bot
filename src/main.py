@@ -1,5 +1,6 @@
 import discord
 import random
+import re
 from discord import Message as DiscordMessage
 import logging
 from src.base import Message, Conversation
@@ -21,6 +22,7 @@ from src.utils import (
     discord_message_to_message,
 )
 from src import completion
+from src import getRoles
 from src.completion import generate_completion_response, process_response
 from src.moderation import (
     moderate_message,
@@ -44,7 +46,6 @@ now = datetime.datetime.now(mst)
 logging.basicConfig(
     format="[%(asctime)s] [%(filename)s:%(lineno)d] %(message)s", level=logging.INFO
 )
-
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -342,22 +343,22 @@ async def on_message(message: DiscordMessage):
         logger.exception(e)
 
 @client.event
-async def on_member_join(member: discord.Member):
-    channel = discord.utils.get(member.guild.channels, name="✨°general")
-    await channel.send(f"Looks like {member.mention} has joined the server!")
-    join_message = [
-        Message(user=member.mention, text=f"""Hey B-TeamChairMan its me {member.mention}, 
-                             I am new here can I get big welcome greeting from BarbarianInc? """)
-        ]
-
-    async with channel.typing():
-        response_data = await generate_completion_response(
-            messages=join_message, user=member.mention
-        )
-    # send response
-    await process_response(
-        user=member.mention, channel=channel, response_data=response_data
-    )
+# async def on_member_join(member: discord.Member):
+#     channel = discord.utils.get(member.guild.channels, name="✨°general")
+#     await channel.send(f"Looks like {member.mention} has joined the server!")
+#     join_message = [
+#         Message(user=member.mention, text=f"""Hey B-TeamChairMan its me {member.mention},
+#                              I am new here can I get big welcome greeting from BarbarianInc? """)
+#         ]
+#
+#     async with channel.typing():
+#         response_data = await generate_completion_response(
+#             messages=join_message, user=member.mention
+#         )
+#     # send response
+#     await process_response(
+#         user=member.mention, channel=channel, response_data=response_data
+#     )
 
 async def get_gif(searchTerm):
     print("https://tenor.googleapis.com/v2/search?q={}&key={}&limit=50".format(searchTerm, TENOR_KEY))
@@ -373,99 +374,166 @@ async def get_gif(searchTerm):
 
     return gif_url
 
-# async def check_inactivity():
-#     inactivity_threshold = 6 * 60 * 60  # 6 hours in seconds
-#     gif_threshold = 10 * 60 * 60  # 10 hours in seconds
-#     target_guild_id = 1053818243732754513
-#
-#     while True:
-#         await asyncio.sleep(60)  # Check every minute
-#
-#         target_guild = client.get_guild(target_guild_id)
-#         target_channel = discord.utils.get(target_guild.channels, name="✨°general")
-#         if target_channel is None:
-#             continue
-#
-#         if target_channel.id not in check_inactivity.last_active:
-#             check_inactivity.last_active[target_channel.id] = datetime.datetime.now(mst)
-#
-#         if target_channel.id not in check_inactivity.last_gif:
-#             check_inactivity.last_gif[target_channel.id] = datetime.datetime.now(mst) - datetime.timedelta(seconds=gif_threshold)
-#
-#         time_since_last_active = datetime.datetime.now(mst) - check_inactivity.last_active[target_channel.id]
-#         time_since_last_gif = datetime.datetime.now(mst) - check_inactivity.last_gif[target_channel.id]
-#
-#         if time_since_last_active.total_seconds() >= inactivity_threshold:
-#             if time_since_last_gif.total_seconds() >= gif_threshold:
-#                 check_inactivity.last_gif[target_channel.id] = datetime.datetime.now(mst)
-#                 gif_url = await get_gif("hello chat")
-#                 if gif_url is not None:
-#                     await target_channel.send(gif_url)
-#
-# # Initialize the last_active and last_gif dictionaries as attributes of the check_inactivity function
-# check_inactivity.last_active = {}
-# check_inactivity.last_gif = {}
-
-import re
 
 
-@tree.command(name="accountcode", description="Create or Retrieve your Lost Ones Account Code")
-async def accountCode(ctx, account_id: str):
-    allowed_channel_id = 1105203074039042179  # Replace with the actual channel ID
-    if ctx.channel_id == allowed_channel_id:
-        await process_account_code(ctx, account_id)
+
+@tree.command(name="assignrole", description="Input your wallet ID to assign your discord role")
+async def assign_role(int: discord.Interaction, account_id: str):
+    allowed_channel_id = 1138291359829213256  # Replace with the actual channel ID
+    if int.channel_id == allowed_channel_id:
+        await process_accounts(int, account_id)
     else:
-        await ctx.response.send_message("This command can only be used in the '🧩°the-lost-ones' channel")
+        await int.response.send_message("This command can only be used in the 🔍°verify-role channel")
 
-
-async def process_account_code(ctx, account_id: str):
+async def process_accounts(int: discord.Interaction, account_id: str):
     if not re.match(r"0\.0\.\d{5,}", account_id):
-        await ctx.response.send_message(
+        await int.response.send_message(
             "Invalid Account ID format. The account ID must be numbers and follow this format: '0.0.xxxxxx'")
         return
 
     s3 = boto3.client('s3')
     bucket_name = 'lost-ones-upload32737-staging'
-    object_key = f'public/accountCode/accountCodes.csv'
+    object_key = f'public/discordAccounts/accounts.csv'
 
     try:
-        # Download the CSV from S3
+        # Try to get the CSV from S3
+        response = s3.get_object(Bucket=bucket_name, Key=object_key)
+        csv_content = response['Body'].read().decode('utf-8')
+    except s3.exceptions.NoSuchKey:
+        # If CSV doesn't exist, set csv_content to an empty string
+        csv_content = ""
+
+    discord_username = int.user.name
+    discord_user_id = int.user.id
+    current_timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    try:
+        # Read CSV content
+        csv_reader = csv.reader(StringIO(csv_content), delimiter='|')
+        account_data = {row[0]: row for row in csv_reader}
+
+        # Check for existing entries by account_id or discord_username
+        account_exists = account_id in account_data
+        username_exists = any(data[1] == discord_username for data in account_data.values())
+
+        if not account_exists and not username_exists:
+            new_record = [account_id, discord_username, discord_user_id, current_timestamp]
+            account_data[account_id] = new_record
+
+            # Save the updated CSV back to S3
+            csv_out = StringIO()
+            csv_writer = csv.writer(csv_out, delimiter='|')
+            for record in account_data.values():
+                csv_writer.writerow(record)
+
+            s3.put_object(
+                Bucket=bucket_name, Key=object_key, Body=csv_out.getvalue()
+            )
+
+        # Fetch NFTs and determine roles (common to both new and existing entries)
+        nfts = getRoles.fetch_from_mirror_node(account_id)
+        matched_records = getRoles.match_nfts_to_discord_helper(nfts)
+        assigned_roles = getRoles.determine_roles(matched_records)
+
+        roles_str = '\n'.join(['- ' + role for role in assigned_roles])
+
+
+        # Prepare response based on existence check results
+        if account_exists:
+            title = f"Wallet ID {account_id} already exists ({discord_username})"
+            description = f"Roles:\n{roles_str}"
+            await assign_roles_to_user(int.user, assigned_roles, int.guild)
+        elif username_exists:
+            title = f"Discord username {discord_username} already exists for another Wallet ID."
+            description = ""
+        else:
+            title = f"Added Roles for {discord_username} ({account_id})"
+            description = f"Roles:\n{roles_str}"
+            await assign_roles_to_user(int.user, assigned_roles, int.guild)
+
+        embed = discord.Embed(
+            title=title,
+            description=description,
+            color=discord.Color.blue()
+        )
+        await int.response.send_message(embed=embed)
+
+    except Exception as e:
+        await int.response.send_message(f"An error occurred while processing the Role: {str(e)}")
+
+
+async def assign_roles_to_user(member, role_names, guild):
+    # List of possible roles to consider for addition/removal
+    possible_roles = [
+        'Zombie/Spirit',
+        'Hbarbarian GOD',
+        'Hbarbarian Chieftain',
+        'Hbarbarian Berserker',
+        'Hbarbarian'
+    ]
+
+    # 1. Fetch all the roles that the user currently has.
+    current_roles = member.roles
+
+    # Create a list of role objects for the newly determined roles
+    new_roles = [discord.utils.get(guild.roles, name=role_name) for role_name in role_names]
+
+    # 2. Identify roles to add and roles to remove based on conditions
+    roles_to_add = [role for role in new_roles if role not in current_roles]
+    roles_to_remove = [role for role in current_roles if role.name in possible_roles and role.name not in role_names]
+
+    # 3. Add new roles to the user.
+    for role in roles_to_add:
+        await member.add_roles(role)
+
+    # 4. Remove roles that no longer apply.
+    for role in roles_to_remove:
+        await member.remove_roles(role)
+
+    # Optional: Print information for debugging.
+    for role in roles_to_add:
+        print(f"Added role {role.name} to {member.display_name}.")
+    for role in roles_to_remove:
+        print(f"Removed role {role.name} from {member.display_name}.")
+
+
+@tree.command(name="refreshroles", description="Refresh Discord roles")
+async def refresh_roles(interaction: discord.Interaction):
+    allowed_channel_id = 1068830862617096303  # Replace with the actual channel ID
+    if interaction.channel_id != allowed_channel_id:
+        await interaction.response.send_message("This command can only be used in the dev-progress channel")
+        return
+
+    s3 = boto3.client('s3')
+    bucket_name = 'lost-ones-upload32737-staging'
+    object_key = f'public/discordAccounts/accounts.csv'
+
+    try:
+        # Try to get the CSV from S3
         response = s3.get_object(Bucket=bucket_name, Key=object_key)
         csv_content = response['Body'].read().decode('utf-8')
 
         # Read CSV content
         csv_reader = csv.reader(StringIO(csv_content), delimiter='|')
-        account_codes = {row[0]: row[1] for row in csv_reader}
 
-        # Generate a UUID if the account_id does not exist
-        if account_id not in account_codes:
-            account_codes[account_id] = str(uuid.uuid4())
-            note = "Created"
+        for row in csv_reader:
+            account_id, discord_username, discord_user_id, _ = row
+            member = discord.utils.get(interaction.guild.members, id=int(discord_user_id))  # get the user from the guild
+            print(member)
 
-            # Save the updated CSV back to S3
-            csv_out = StringIO()
-            csv_writer = csv.writer(csv_out, delimiter='|')
-            for account_id, account_code in account_codes.items():
-                csv_writer.writerow([account_id, account_code])
+            # Fetch NFTs and determine roles
+            nfts = getRoles.fetch_from_mirror_node(account_id)
+            matched_records = getRoles.match_nfts_to_discord_helper(nfts)
+            assigned_roles = getRoles.determine_roles(matched_records)
 
-            s3.put_object(
-                Bucket=bucket_name, Key=object_key, Body=csv_out.getvalue()
-            )
-        else:
-            note = "Retrieved"
+            print (assigned_roles)
+            # Assign roles to the user
+            await assign_roles_to_user(member, assigned_roles, interaction.guild)
 
-        # Create an embed for the accountCode response
-        embed = discord.Embed(
-            title=f"{note} {account_id} Account Code",
-            description=f"{account_codes[account_id]}",
-            color=discord.Color.blue()
-        )
-
-        # Send the accountCode as an embed
-        await ctx.response.send_message(embed=embed)
+        await interaction.response.send_message("All roles have been refreshed!")
 
     except Exception as e:
-        await ctx.response.send_message(f"An error occurred while processing the account code: {str(e)}")
+        await interaction.response.send_message(f"An error occurred while refreshing the roles: {str(e)}")
 
 
 client.run(DISCORD_BOT_TOKEN)
