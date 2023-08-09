@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-CFP_TOKEN_ID = os.environ["CFP_TOKEN_ID"]
+CFP_TOKEN_ID = '0.0.2235264'
 
 def fetch_from_mirror_node(accountId, nextUrl=None):
     url = 'https://mainnet-public.mirrornode.hedera.com'
