@@ -24,7 +24,7 @@ def fetch_from_mirror_node(accountId, nextUrl=None):
 def match_nfts_to_discord_helper(nfts):
     matched_records = []
 
-    with open('dataAnalytics/discordRoleHelper.json', 'r') as f:
+    with open('discordRoleHelper.json', 'r') as f:
         discord_helper = json.load(f)
 
     for item in nfts:
