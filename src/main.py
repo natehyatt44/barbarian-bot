@@ -376,7 +376,7 @@ async def get_gif(searchTerm):
 
 @tree.command(name="assignrole", description="Input your wallet ID to assign your discord role")
 async def assign_role(int: discord.Interaction, account_id: str):
-    allowed_channel_id = 1138291359829213256  # Replace with the actual channel ID
+    allowed_channel_id = 1139026502814539990  # Replace with the actual channel ID
     if int.channel_id == allowed_channel_id:
         await process_accounts(int, account_id)
     else:
