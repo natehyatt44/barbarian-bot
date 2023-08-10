@@ -343,22 +343,22 @@ async def on_message(message: DiscordMessage):
         logger.exception(e)
 
 @client.event
-# async def on_member_join(member: discord.Member):
-#     channel = discord.utils.get(member.guild.channels, name="✨°general")
-#     await channel.send(f"Looks like {member.mention} has joined the server!")
-#     join_message = [
-#         Message(user=member.mention, text=f"""Hey B-TeamChairMan its me {member.mention},
-#                              I am new here can I get big welcome greeting from BarbarianInc? """)
-#         ]
-#
-#     async with channel.typing():
-#         response_data = await generate_completion_response(
-#             messages=join_message, user=member.mention
-#         )
-#     # send response
-#     await process_response(
-#         user=member.mention, channel=channel, response_data=response_data
-#     )
+async def on_member_join(member: discord.Member):
+    channel = discord.utils.get(member.guild.channels, name="✨°general")
+    await channel.send(f"Looks like {member.mention} has joined the server!")
+    join_message = [
+        Message(user=member.mention, text=f"""Hey B-TeamChairMan its me {member.mention},
+                             I am new here can I get big welcome greeting from BarbarianInc? """)
+        ]
+
+    async with channel.typing():
+        response_data = await generate_completion_response(
+            messages=join_message, user=member.mention
+        )
+    # send response
+    await process_response(
+        user=member.mention, channel=channel, response_data=response_data
+    )
 
 async def get_gif(searchTerm):
     print("https://tenor.googleapis.com/v2/search?q={}&key={}&limit=50".format(searchTerm, TENOR_KEY))
@@ -374,16 +374,13 @@ async def get_gif(searchTerm):
 
     return gif_url
 
-
-
-
 @tree.command(name="assignrole", description="Input your wallet ID to assign your discord role")
 async def assign_role(int: discord.Interaction, account_id: str):
     allowed_channel_id = 1138291359829213256  # Replace with the actual channel ID
     if int.channel_id == allowed_channel_id:
         await process_accounts(int, account_id)
     else:
-        await int.response.send_message("This command can only be used in the 🔍°verify-role channel")
+        await int.response.send_message("This command can only be used in the 🔍°assign-role channel")
 
 async def process_accounts(int: discord.Interaction, account_id: str):
     if not re.match(r"0\.0\.\d{5,}", account_id):
