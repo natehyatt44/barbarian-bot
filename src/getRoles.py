@@ -1,6 +1,7 @@
 import requests
 import json
 import os
+import boto3
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -24,8 +25,13 @@ def fetch_from_mirror_node(accountId, nextUrl=None):
 def match_nfts_to_discord_helper(nfts):
     matched_records = []
 
-    with open('discordRoleHelper.json', 'r') as f:
-        discord_helper = json.load(f)
+    s3 = boto3.client('s3')
+    bucket_name = 'lost-ones-upload32737-staging'
+    object_key = f'public/discordAccounts/discordRoleHelper.json'
+
+    response = s3.get_object(Bucket=bucket_name, Key=object_key)
+    res = response['Body'].read().decode('utf-8')
+    discord_helper = json.loads(res)
 
     for item in nfts:
         if item['token_id'] == CFP_TOKEN_ID:
