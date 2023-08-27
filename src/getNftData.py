@@ -1,7 +1,7 @@
 import requests
 import json
 import time
-import datetime
+from datetime import datetime, timedelta
 import csv
 import boto3
 import io
@@ -9,6 +9,8 @@ from botocore.exceptions import NoCredentialsError, PartialCredentialsError, Cli
 import pandas as pd
 from dotenv import load_dotenv
 import os
+import base64
+import re
 
 # Bucket used for processing data
 bucket = 'lost-ones-upload32737-staging'
@@ -25,25 +27,47 @@ def decode_memo_base64(encoded_str):
     decoded_bytes = base64.b64decode(encoded_str)
     return decoded_bytes.decode('utf-8')
 
-def read_data_s3(token_id, filename):
-    """Read the discord users from an S3 bucket into a DataFrame."""
+def read_config_s3(token_id):
+    """Read the config JSON from an S3 bucket."""
     s3 = boto3.client('s3')
-    key = f'public/data-analytics/{token_id}/{filename}'
+    key = f'public/data-analytics/{token_id}/nft_config.json'
     try:
         obj = s3.get_object(Bucket=bucket, Key=key)
-        return pd.read_csv(obj['Body'], delimiter='|')
+        data = obj['Body'].read().decode('utf-8')
+        return json.loads(data)
     except ClientError as e:
         if e.response['Error']['Code'] == "NoSuchKey":
-            print(f"No data found for token_id {token_id}.")
-            return pd.DataFrame()  # Returning an empty dataframe for consistency
+            print(f"No config found for token_id {token_id}.")
+            return {}  # Returning an empty dictionary for consistency
         else:
-            # Print the unexpected error
             print(f"Unexpected error: {e}")
-            return pd.DataFrame()  # Returning an empty dataframe for consistency
+            return {}
     except (NoCredentialsError, PartialCredentialsError):
         print("Credentials not available")
-        return pd.DataFrame()
+        return {}
 
+def update_and_save_config_s3(token_id, config, timestamp_col):
+    """Update and save the config JSON to S3."""
+    s3 = boto3.client('s3')
+    key = f'public/data-analytics/{token_id}/nft_config.json'
+
+    # Extract the latest timestamp from the dataframe
+    latest_timestamp = dataframe[timestamp_col].max()
+
+    # Update the config
+    config = read_config_s3(token_id, filename)
+    config[timestamp_col] = str(latest_timestamp)  # Converting to string in case it's a datetime object
+
+    # Convert config to JSON format
+    config_str = json.dumps(config)
+
+    try:
+        s3.put_object(Bucket=bucket, Key=key, Body=config_str)
+        print(f"Updated config for token_id {token_id} {filename} saved to S3.")
+    except ClientError as e:
+        print(f"Error saving updated config to S3: {e}")
+    except (NoCredentialsError, PartialCredentialsError):
+        print("Credentials not available")
 
 def save_updated_nft_data_s3(token_id, filename, updated_nft_data):
     """Save the updated NFT data back to S3, overwriting the original file."""
@@ -89,49 +113,40 @@ def fetch_all_nfts(token_id, nextUrl=None):
 
     return nft_data
 
+def compare_nfts_with_existing_data(token_id, config, nft_data):
+    """
+    Compare NFTs with the existing data using the config.
 
-import pandas as pd
+    Args:
+    - token_id: The token ID
+    - config: A dict containing configuration values.
+    - nft_data: List of new NFT data.
 
-
-def compare_nfts_with_existing_data(token_id, nft_data):
-    # Load existing data from S3
-    previous_nft_df = read_data_s3(token_id, 'nftConfig.csv')
+    Returns:
+    - A list of updated serial numbers based on the provided configuration.
+    """
 
     # Convert the spender column
     for item in nft_data:
         item['spender'] = get_market_account_name([item['spender']])
 
-    # If previous data is empty, consider all current data as updated
-    if previous_nft_df.empty:
-        updated_serial_numbers = [item['serial_number'] for item in nft_data]
-        save_updated_nft_data_s3(token_id, 'nftConfig.csv', nft_data)
-        return updated_serial_numbers
-
     # Convert the list of dictionaries into DataFrame
     current_nft_df = pd.DataFrame(nft_data)
 
-    # Convert merge columns to string for both dataframes to ensure matching data types
-    columns_to_convert = ['account_id', 'token_id', 'serial_number', 'modified_timestamp']
-    for column in columns_to_convert:
-        previous_nft_df[column] = previous_nft_df[column].astype(str)
-        current_nft_df[column] = current_nft_df[column].astype(str)
+    # Convert columns to correct data type for comparison
+    current_nft_df['modified_timestamp'] = current_nft_df['modified_timestamp'].astype(float)
 
-    # Merge the two dataframes on your specified columns
-    merged_df = pd.merge(left=previous_nft_df, right=current_nft_df,
-                         on=['account_id', 'token_id', 'serial_number', 'modified_timestamp'],
-                         how='outer', indicator=True)
+    # Filter data based on modified_timestamp
+    updated_nft_df = current_nft_df[current_nft_df['modified_timestamp'] > config["last_nft_listing_ts"]]
 
-    # Filter the rows where the data doesn't match
-    discrepancies = merged_df[merged_df['_merge'] != 'both']
+    # Extract the updated NFTs' details
+    updated_nft_records = updated_nft_df[
+        ['account_id', 'token_id', 'serial_number', 'modified_timestamp', 'spender']].to_dict(orient='records')
 
-    # Get the serial numbers of the discrepancies
-    updated_serial_numbers = discrepancies['serial_number'].tolist()
-    if updated_serial_numbers == ['serial_number']:
-        updated_serial_numbers = 0
+    # Save the new NFT data
+    save_updated_nft_data_s3(token_id, 'nft_collection.csv', nft_data)
 
-    save_updated_nft_data_s3(token_id, 'nftConfig.csv', nft_data)
-
-    return updated_serial_numbers
+    return updated_nft_records
 
 
 def fetch_transaction_from_mirror_node(transactionId):
@@ -144,29 +159,31 @@ def fetch_transaction_from_mirror_node(transactionId):
     # In case there are no transactions in the response
     return transaction
 
-def fetch_nfts_from_mirror_node(token_id, serial_number, nextUrl = None):
+def fetch_nfts_from_mirror_node(token_id, config, nft_record, nextUrl = None):
     url = 'https://mainnet-public.mirrornode.hedera.com'
 
     # If last_timestamp is provided, append it to the path
-    path = nextUrl or f'/api/v1/tokens/{token_id}/nfts/{serial_number}/transactions'
+    path = nextUrl or f'/api/v1/tokens/{token_id}/nfts/{nft_record["serial_number"]}/transactions'
 
     response = requests.get(f'{url}{path}')
     nfts = response.json()
 
-    mint_transaction_ids = set(nft['transaction_id'] for nft in nfts['transactions'] if nft['type'] == 'TOKENMINT')
-
-    nft_data = []
+    nft_listing_data = []
     for nft in nfts['transactions']:
-        transaction_id = nft['transaction_id']
-        if nft['type'] in ['CRYPTOTRANSFER', 'CRYPTOAPPROVEALLOWANCE'] and transaction_id not in mint_transaction_ids:
-            transaction_data = fetch_transaction_from_mirror_node(transaction_id)
-            nft_data.append(transaction_data)
+        if nft['type'] in ['CRYPTOAPPROVEALLOWANCE'] and float(nft['consensus_timestamp']) > config["last_nft_listing_ts"]:
+            listing_data = fetch_transaction_from_mirror_node(nft['transaction_id'])
+            # Append the nft_record data to the listing_data
+            listing_data['account_id'] = nft_record['account_id']
+            listing_data['token_id'] = nft_record['token_id']
+            listing_data['serial_number'] = nft_record['serial_number']
+            listing_data['modified_timestamp'] = nft_record['modified_timestamp']
+            nft_listing_data.append(listing_data)
 
     if 'links' in nfts and 'next' in nfts['links']:
         if nfts['links']['next'] != None:
             nft_data.extend(fetch_nfts_from_mirror_node(token_id, serial_number, nfts['links']['next']))
 
-    return nft_data
+    return nft_listing_data
 
 def get_market_account_name(transfer_accounts):
     mapping = {
@@ -179,7 +196,7 @@ def get_market_account_name(transfer_accounts):
             return mapping[account_id]
     return None
 
-def process_and_store_data(token_id, all_nft_data, filename="nft_transactions.csv"):
+def nft_sales(token_id, all_nft_data, filename="nft_transactions.csv"):
     # Flatten the nested list structure
     flattened_data = [transaction for sublist in all_nft_data for transaction in sublist["transactions"]]
 
@@ -193,7 +210,8 @@ def process_and_store_data(token_id, all_nft_data, filename="nft_transactions.cs
     csv_data = []
 
     for item in flattened_data:
-        txn_time_as_datetime = hedera_timestamp_to_datetime(txn['consensus_timestamp'])
+        txn_time_as_datetime = hedera_timestamp_to_datetime(item['consensus_timestamp'])
+        txn_id = item['transaction_id']
 
         # Get all the account IDs from the transfers list
         transfer_accounts = [transfer['account'] for transfer in item.get('transfers', [])]
@@ -218,17 +236,18 @@ def process_and_store_data(token_id, all_nft_data, filename="nft_transactions.cs
 
             # Use the get_market_account_name function to set market_id
             market_name = get_market_account_name(transfer_accounts)
-            csv_data.append([txn_time_as_datetime, 'Sale', market_name, sender, receiver, token_id, serial_number, individual_nft_price ])
+            csv_data.append([txn_time_as_datetime, txn_id, 'Sale', market_name, sender, receiver, token_id, serial_number, individual_nft_price ])
 
     # Convert csv_data to a DataFrame
     df = pd.DataFrame(csv_data, columns=["txn_time",
-                                        "txn_type",
-                                        "market_name",
-                                        "account_id_seller",
-                                        "account_id_buyer",
-                                        "token_id",
-                                        "serial_number",
-                                        "amount"])
+                                         "txn_id",
+                                         "txn_type",
+                                         "market_name",
+                                         "account_id_seller",
+                                         "account_id_buyer",
+                                         "token_id",
+                                         "serial_number",
+                                         "amount"])
 
     # Sort DataFrame by Serial # and then by Transaction Time (both ascending)
     df = df.sort_values(by=["txn_time", "serial_number"])
@@ -240,103 +259,94 @@ def process_and_store_data(token_id, all_nft_data, filename="nft_transactions.cs
     save_updated_nft_data_s3(token_id, filename, df)
 
     # Calculate and print the total amount
-    total_amount = df["Amount"].sum()
+    total_amount = df["amount"].sum()
     print(f"Total Amount: {total_amount}")
 
-def extract_nft_listing_data(token_id, nft_data_with_spender):
+def extract_hbar_amount(memo_decoded):
+    # Check for patterns and extract the HBAR amount
+    patterns = [
+        r"for (\d+) HBAR",     # Matches "for 665 HBAR" or "for 400 HBAR"
+        r"#\d+ for (\d+) HBAR" # Matches "#930 for 400 HBAR" or "#27 for 2222 HBAR"
+    ]
 
+    for pattern in patterns:
+        match = re.search(pattern, memo_decoded)
+        if match:
+            return match.group(1)  # Return the matched HBAR amount
+    return None  # If no matches found
 
+def extract_market_name(memo_decoded):
+    # Check for unique patterns in memo to determine the market name
+    if "Confirm listing of NFT:" in memo_decoded:
+        return "Zuse"
+    elif "SentX Market Listing:" in memo_decoded or "Approve NFT Token" in memo_decoded:
+        return "SentX"
+    return None  # If no market name can be determined
 
-    # Filter for "CRYPTOALLOWANCE" transactions.
-    crypto_allowance_transactions = [transaction for transaction_data in nft_transactions for transaction in
-                                     transaction_data['transactions'] if
-                                     transaction['name'] == 'CRYPTOAPPROVEALLOWANCE']
-
+def nft_listings(token_id, transactions):
     listings = []
 
-    for txn in crypto_allowance_transactions:
+    for transaction_block in transactions:
+        txn = transaction_block['transactions'][0]
         memo_decoded = decode_memo_base64(txn['memo_base64'])
-
+        print (memo_decoded)
         # If the decoded memo includes the word "Bulk", skip this transaction
         if "Bulk" in memo_decoded:
             continue
 
-        parts = memo_decoded.split()
+        amount = extract_hbar_amount(memo_decoded)
+        market_name = extract_market_name(memo_decoded)
 
-        # Find the position of the word "Serial" in parts
-        if "Serial" in parts:
-            index = parts.index("Serial")
-            serial_number = parts[index + 1]  # serial number is right next to "Serial"
-
-            # Assuming the structure remains consistent, you can get the amount in this manner
-            amount = parts[-2]
-
-            # Extract the account ID from the transfers list
-            # We will look for an account that is not "0.0.8" and "0.0.98"
-            account_id = None
-            for transfer in txn["transfers"]:
-                if transfer["account"] not in ["0.0.8", "0.0.98"]:
-                    account_id = transfer["account"]
-                    break
-
+        if amount:  # Only proceed if we've successfully extracted an amount
             txn_time_as_datetime = hedera_timestamp_to_datetime(txn['consensus_timestamp'])
 
             listings.append({
                 'txn_time': txn_time_as_datetime,
                 'txn_type': "List",
-                'account_id_seller': account_id,
-                'token_id': token_id,
-                'serial_number': serial_number,
+                'account_id_seller': transaction_block['account_id'],
+                'token_id': transaction_block['token_id'],
+                'serial_number': transaction_block['serial_number'],
+                'market_name': market_name,  # using spender as market_name
                 'amount': amount
             })
 
-    print(listings)
-
     listings_df = pd.DataFrame(listings)
 
-    # Convert the columns to string type for both DataFrames
-    listings_df['account_id_seller'] = listings_df['account_id_seller'].astype(str)
-    listings_df['token_id'] = listings_df['token_id'].astype(str)
-    listings_df['serial_number'] = listings_df['serial_number'].astype(str)
+    # Convert the columns to string type for consistency
+    columns_to_convert = ['account_id_seller', 'token_id', 'serial_number']
+    for column in columns_to_convert:
+        listings_df[column] = listings_df[column].astype(str)
 
-    nft_data_with_spender['account_id'] = nft_data_with_spender['account_id'].astype(str)
-    nft_data_with_spender['token_id'] = nft_data_with_spender['token_id'].astype(str)
-    nft_data_with_spender['serial_number'] = nft_data_with_spender['serial_number'].astype(str)
-
-    # Assuming you have the nft_data_with_spender DataFrame already.
-    merged_df = listings_df.merge(
-        nft_data_with_spender,
-        left_on=['account_id_seller', 'token_id', 'serial_number'],
-        right_on=['account_id', 'token_id', 'serial_number'],
-        how='inner'
-    )
-
-    # Write the resultant DataFrame to nft_listings.csv.
-    merged_df.to_csv('nft_listings.csv', index=False, columns=['txn_time',
-                                                               'txn_type',
-                                                               'market_name',
-                                                               'account_id_seller',
-                                                               'token_id',
-                                                               'serial_number',
-                                                               'amount'])
-    nft_data_with_spender.to_csv('here.csv', index=False)
+    # Save the resultant DataFrame to nft_listings.csv.
+    listings_df.to_csv('nft_listings.csv', index=False)
 
 def main():
     token_id = '0.0.2235264'
-    nft_data = fetch_all_nfts(token_id)
-    updated_serial_numbers = compare_nfts_with_existing_data(token_id, nft_data)
+    # config = read_config_s3(token_id)
+    # nft_data = fetch_all_nfts(token_id)
+    # updated_nft_records = compare_nfts_with_existing_data(token_id, config, nft_data)
+    #
+    # all_nft_data = []  # To store data fetched for each updated serial number
+    #
+    # # Loop over updated NFTs and fetch details from mirror node
+    # for nft_record in updated_nft_records:
+    #     nft_transactions = fetch_nfts_from_mirror_node(token_id, config, nft_record)
+    #     all_nft_data.extend(nft_transactions)
+    #     print(nft_transactions)
+    #
+    # # Save all_nft_data to a JSON file
+    # with open('nft_new.json', 'w') as f:
+    #     json.dump(all_nft_data, f, indent=4)
 
-    all_nft_data = []  # To store data fetched for each updated serial number
+    with open("nft_new.json", "r") as file:
+        data = json.load(file)
 
-    # Loop over updated serial numbers and fetch details from mirror node
-    for serial_number in updated_serial_numbers:
-        nft_transactions = fetch_nfts_from_mirror_node(token_id, serial_number)
-        all_nft_data.extend(nft_transactions)
+    # nft_sales(token_id, all_nft_data)
 
-    process_and_store_data(token_id, all_nft_data)
+    #nft_data_with_spender = nft_data[nft_data['spender'].notna()]
+    #nft_sales(token_id, all_nft_data, nft_data_with_spender)
 
-    nft_data_with_spender = nft_data[nft_data_df['spender'].notna()]
-    extract_nft_listing_data(token_id, all_nft_data, nft_data_with_spender)
+    nft_listings(token_id, data)
 
 
 
