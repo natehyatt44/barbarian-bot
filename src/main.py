@@ -181,7 +181,7 @@ async def on_message(message: DiscordMessage):
             await message.channel.send(gif_url)
 
         # checks for good mornings
-        if message.content.startswith('!gm') or message.content.startswith('!story') or message.content.startswith('!chat'):
+        if message.content.startswith('!gm') or message.content.startswith('bteam'):
             channel_messages = [
                 discord_message_to_message(message)
             ]

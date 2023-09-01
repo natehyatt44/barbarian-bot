@@ -147,55 +147,6 @@ def compare_nfts_with_existing_data(token_id, config, nft_data):
     save_updated_nft_data_s3(token_id, 'nft_collection.csv', nft_data)
 
     return updated_nft_records
-
-
-def fetch_transaction_from_mirror_node(transactionId):
-    url = 'https://mainnet-public.mirrornode.hedera.com'
-    path = f'/api/v1/transactions/{transactionId}'
-
-    response = requests.get(f'{url}{path}')
-    transaction = response.json()
-
-    # In case there are no transactions in the response
-    return transaction
-
-def fetch_nfts_from_mirror_node(token_id, config, nft_record, nextUrl = None):
-    url = 'https://mainnet-public.mirrornode.hedera.com'
-
-    # If last_timestamp is provided, append it to the path
-    path = nextUrl or f'/api/v1/tokens/{token_id}/nfts/{nft_record["serial_number"]}/transactions'
-
-    response = requests.get(f'{url}{path}')
-    nfts = response.json()
-
-    nft_listing_data = []
-    for nft in nfts['transactions']:
-        if nft['type'] in ['CRYPTOAPPROVEALLOWANCE'] and float(nft['consensus_timestamp']) > config["last_nft_listing_ts"]:
-            listing_data = fetch_transaction_from_mirror_node(nft['transaction_id'])
-            # Append the nft_record data to the listing_data
-            listing_data['account_id'] = nft_record['account_id']
-            listing_data['token_id'] = nft_record['token_id']
-            listing_data['serial_number'] = nft_record['serial_number']
-            listing_data['modified_timestamp'] = nft_record['modified_timestamp']
-            nft_listing_data.append(listing_data)
-
-    if 'links' in nfts and 'next' in nfts['links']:
-        if nfts['links']['next'] != None:
-            nft_data.extend(fetch_nfts_from_mirror_node(token_id, serial_number, nfts['links']['next']))
-
-    return nft_listing_data
-
-def get_market_account_name(transfer_accounts):
-    mapping = {
-        "0.0.1064038": "sentx",
-        "0.0.690356": "zuse"
-    }
-
-    for account_id in transfer_accounts:
-        if account_id in mapping:
-            return mapping[account_id]
-    return None
-
 def nft_sales(token_id, all_nft_data, filename="nft_transactions.csv"):
     # Flatten the nested list structure
     flattened_data = [transaction for sublist in all_nft_data for transaction in sublist["transactions"]]
@@ -256,11 +207,58 @@ def nft_sales(token_id, all_nft_data, filename="nft_transactions.csv"):
     df = df.drop_duplicates()
 
     # Save DataFrame to S3
-    save_updated_nft_data_s3(token_id, filename, df)
+    upload_df_s3(token_id, filename, df)
 
     # Calculate and print the total amount
     total_amount = df["amount"].sum()
     print(f"Total Amount: {total_amount}")
+
+def fetch_transaction_from_mirror_node(transactionId):
+    url = 'https://mainnet-public.mirrornode.hedera.com'
+    path = f'/api/v1/transactions/{transactionId}'
+
+    response = requests.get(f'{url}{path}')
+    transaction = response.json()
+
+    # In case there are no transactions in the response
+    return transaction
+
+def fetch_nfts_from_mirror_node(token_id, config, nft_record, nextUrl = None):
+    url = 'https://mainnet-public.mirrornode.hedera.com'
+
+    # If last_timestamp is provided, append it to the path
+    path = nextUrl or f'/api/v1/tokens/{token_id}/nfts/{nft_record["serial_number"]}/transactions'
+
+    response = requests.get(f'{url}{path}')
+    nfts = response.json()
+
+    nft_listing_data = []
+    for nft in nfts['transactions']:
+        if nft['type'] in ['CRYPTOAPPROVEALLOWANCE'] and float(nft['consensus_timestamp']) > config["last_nft_listing_ts"]:
+            listing_data = fetch_transaction_from_mirror_node(nft['transaction_id'])
+            # Append the nft_record data to the listing_data
+            listing_data['account_id'] = nft_record['account_id']
+            listing_data['token_id'] = nft_record['token_id']
+            listing_data['serial_number'] = nft_record['serial_number']
+            listing_data['modified_timestamp'] = nft_record['modified_timestamp']
+            nft_listing_data.append(listing_data)
+
+    if 'links' in nfts and 'next' in nfts['links']:
+        if nfts['links']['next'] != None:
+            nft_listing_data.extend(fetch_nfts_from_mirror_node(token_id, config, nft_record, nfts['links']['next']))
+
+    return nft_listing_data
+
+def get_market_account_name(transfer_accounts):
+    mapping = {
+        "0.0.1064038": "sentx",
+        "0.0.690356": "zuse"
+    }
+
+    for account_id in transfer_accounts:
+        if account_id in mapping:
+            return mapping[account_id]
+    return None
 
 def extract_hbar_amount(memo_decoded):
     # Check for patterns and extract the HBAR amount
@@ -299,9 +297,11 @@ def nft_listings(token_id, transactions):
 
         if amount:  # Only proceed if we've successfully extracted an amount
             txn_time_as_datetime = hedera_timestamp_to_datetime(txn['consensus_timestamp'])
+            txn_id = txn['trasnaction_id']
 
             listings.append({
                 'txn_time': txn_time_as_datetime,
+                'txn_id': txn_id,
                 'txn_type': "List",
                 'account_id_seller': transaction_block['account_id'],
                 'token_id': transaction_block['token_id'],
@@ -322,18 +322,17 @@ def nft_listings(token_id, transactions):
 
 def main():
     token_id = '0.0.2235264'
-    # config = read_config_s3(token_id)
-    # nft_data = fetch_all_nfts(token_id)
-    # updated_nft_records = compare_nfts_with_existing_data(token_id, config, nft_data)
-    #
-    # all_nft_data = []  # To store data fetched for each updated serial number
-    #
-    # # Loop over updated NFTs and fetch details from mirror node
-    # for nft_record in updated_nft_records:
-    #     nft_transactions = fetch_nfts_from_mirror_node(token_id, config, nft_record)
-    #     all_nft_data.extend(nft_transactions)
-    #     print(nft_transactions)
-    #
+    config = read_config_s3(token_id)
+    nft_data = fetch_all_nfts(token_id)
+    updated_nft_records = compare_nfts_with_existing_data(token_id, config, nft_data)
+
+    all_nft_data = []  # To store data fetched for each updated serial number
+
+    # Loop over updated NFTs and fetch details from mirror node
+    for nft_record in updated_nft_records:
+        nft_transactions = fetch_nfts_from_mirror_node(token_id, config, nft_record)
+        all_nft_data.extend(nft_transactions)
+
     # # Save all_nft_data to a JSON file
     # with open('nft_new.json', 'w') as f:
     #     json.dump(all_nft_data, f, indent=4)
@@ -346,7 +345,7 @@ def main():
     #nft_data_with_spender = nft_data[nft_data['spender'].notna()]
     #nft_sales(token_id, all_nft_data, nft_data_with_spender)
 
-    nft_listings(token_id, data)
+    nft_listings(token_id, all_nft_data)
 
 
 
