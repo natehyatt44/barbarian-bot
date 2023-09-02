@@ -2,6 +2,7 @@ import discord
 import random
 import re
 from discord import Message as DiscordMessage
+from discord.ext import tasks
 import logging
 from src.base import Message, Conversation
 from src.constants import (
@@ -29,6 +30,8 @@ from src.moderation import (
     send_moderation_blocked_message,
     send_moderation_flagged_message,
 )
+import src.pipelineNftListing
+import src.discordNftListing
 import requests
 import datetime
 import pytz
@@ -67,6 +70,7 @@ async def on_ready():
                 messages.append(m)
         completion.MY_BOT_EXAMPLE_CONVOS.append(Conversation(messages=messages))
     await tree.sync()
+    await nft_listings.start()
 
     # Add this line to start the check_inactivity function as a background task
     #client.loop.create_task(check_inactivity())
@@ -181,7 +185,7 @@ async def on_message(message: DiscordMessage):
             await message.channel.send(gif_url)
 
         # checks for good mornings
-        if message.content.startswith('!gm') or message.content.startswith('bteam'):
+        if message.content.lower().startswith('!gm') or 'bteam' in message.content.lower():
             channel_messages = [
                 discord_message_to_message(message)
             ]
@@ -444,7 +448,7 @@ async def process_accounts(int: discord.Interaction, account_id: str):
             title = f"Discord username {discord_username} already exists for another Wallet ID."
             description = ""
         else:
-            title = f"Added Roles for {discord_username} ({account_id})"
+            title = f"Added Roles for {discord_username}"
             description = f"Roles:\n{roles_str}"
             await assign_roles_to_user(int.user, assigned_roles, int.guild)
 
@@ -531,6 +535,42 @@ async def refresh_roles(interaction: discord.Interaction):
 
     except Exception as e:
         await interaction.response.send_message(f"An error occurred while refreshing the roles: {str(e)}")
+
+@tasks.loop(seconds=10)
+async def nft_listings():
+    guild_id = 1053818243732754513  # Replace with your guild id
+    channel_id = 1147282514818367628
+    guild = discord.utils.get(client.guilds, id=guild_id)
+    if not guild:
+        print(f"Guild with id {guild_id} not found.")
+        return
+    channel = discord.utils.get(guild.channels, id=channel_id)
+    if not channel:
+        print(f"Channel with id {channel_id} not found in guild {guild.name}.")
+        return
+
+    CFP = '0.0.2235264'
+    AD = '0.0.2371643'
+    token_ids = [CFP, AD]
+
+    for token_id in token_ids:
+        src.pipelineNftListing.execute(token_id)
+        results = src.discordNftListing.execute(token_id)
+        if not results:
+            print(f"No new listings for token {token_id}.")
+            continue
+        for result in results:
+            print(results)
+            embed = discord.Embed(
+                title=f"New Listing!\n{result['name']} #{result['serial_number']}",
+                color=discord.Color.green()
+            )
+            embed.set_image(url=result['image_url'])
+            embed.add_field(name="Amount", value=f"{result['amount']}ℏ", inline=True)
+            embed.add_field(name="Seller", value=result['account_id_seller'], inline=True)
+            embed.add_field(name="Market", value=f"[{result['market_name']}]({result['market_link']})", inline=True)
+            embed.add_field(name="Transaction Time", value=f"{result['txn_time']} UTC", inline=True)
+            await channel.send(embed=embed)
 
 
 client.run(DISCORD_BOT_TOKEN)

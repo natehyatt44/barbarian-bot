@@ -4,3 +4,4 @@ openai==0.25.*
 PyYAML==6.0
 dacite==1.6.*
 boto3==1.26.129
+Pillow==10.0.0

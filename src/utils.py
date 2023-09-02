@@ -25,7 +25,7 @@ def discord_message_to_message(message: DiscordMessage) -> Optional[Message]:
     else:
         if message.content.startswith('!gm'):
             return Message(user=message.author.name, text='Good Morning Chairman!')
-        elif message.content.startswith('bteam'):
+        elif 'bteam' in message.content.lower():
             return Message(user=message.author.name, text=message.content)
         elif message.content:
             return Message(user=message.author.name, text=message.content)

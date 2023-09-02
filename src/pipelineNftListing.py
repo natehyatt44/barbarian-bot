@@ -31,6 +31,12 @@ def read_json_s3(token_id, filename):
     """Read the config JSON from an S3 bucket."""
     s3 = boto3.client('s3')
     key = f'public/data-analytics/{token_id}/{filename}'
+    default_config = {
+        "last_nft_listing_ts": 0,
+        "last_nft_transaction_ts":  0,
+        "last_discord_listings_ts": "",
+        "last_discord_sales_ts": ""
+    }
     try:
         obj = s3.get_object(Bucket=bucket, Key=key)
         data = obj['Body'].read().decode('utf-8')
@@ -38,13 +44,14 @@ def read_json_s3(token_id, filename):
     except ClientError as e:
         if e.response['Error']['Code'] == "NoSuchKey":
             print(f"No json {filename} found for token_id {token_id}.")
-            return {}  # Returning an empty dictionary for consistency
+            return default_config
         else:
             print(f"Unexpected error: {e}")
-            return {}
+            return default_config
     except (NoCredentialsError, PartialCredentialsError):
         print("Credentials not available")
-        return {}
+        return default_config
+
 
 def read_df_s3(token_id, filename):
     """Read a DataFrame from an S3 bucket."""
@@ -148,8 +155,12 @@ def compare_nfts_with_existing_data(token_id, config, nft_data):
     # Convert columns to correct data type for comparison
     current_nft_df['modified_timestamp'] = current_nft_df['modified_timestamp'].astype(float)
 
-    # Filter data based on modified_timestamp
-    updated_nft_df = current_nft_df[current_nft_df['modified_timestamp'] > float(config["last_nft_listing_ts"])]
+    last_nft_listing_ts = config["last_nft_listing_ts"]
+
+    if pd.notna(last_nft_listing_ts):
+        updated_nft_df = current_nft_df[current_nft_df['modified_timestamp'] > float(last_nft_listing_ts)]
+    else:
+        updated_nft_df = current_nft_df
 
     # Extract the updated NFTs' details
     updated_nft_records = updated_nft_df[
@@ -269,9 +280,9 @@ def nft_listings(token_id, transactions):
     new_listings_df = pd.DataFrame(listings)
 
     # Convert the columns to string type for consistency
-    columns_to_convert = ['account_id_seller', 'token_id', 'serial_number']
-    for column in columns_to_convert:
-        new_listings_df[column] = new_listings_df[column].astype(str)
+    # columns_to_convert = ['account_id_seller', 'token_id', 'serial_number']
+    # for column in columns_to_convert:
+    #     new_listings_df[column] = new_listings_df[column].astype(str)
 
     # Save the resultant DataFrame to nft_listings.csv.
     new_listings_df.to_csv('nft_listings.csv', index=False)
@@ -295,8 +306,7 @@ def nft_listings(token_id, transactions):
     upload_df_s3(token_id, 'nft_listings.csv', combined_df)
 
 
-def main():
-    token_id = '0.0.2235264'
+def execute(token_id):
     # Pull config file
     config = read_json_s3(token_id, 'nft_config.json')
     # Pull nft_data
@@ -304,19 +314,20 @@ def main():
     # Find updated records
     updated_nft_records = compare_nfts_with_existing_data(token_id, config, nft_data)
 
+    # If no updated records just skip this.
+    if not updated_nft_records:
+        return
+
     all_nft_data = []  # To store data fetched for each updated serial number
 
     # Loop over updated NFTs and fetch details from mirror node
     for nft_record in updated_nft_records:
         nft_transactions = fetch_nfts_from_mirror_node(token_id, config, nft_record)
         all_nft_data.extend(nft_transactions)
-        print(nft_transactions)
 
     upload_json_s3(token_id, f'nft_listings_raw/nft_listings-{datetime.now()}.json', all_nft_data)
 
     nft_listings(token_id, all_nft_data)
-
-    # Pull Listing data for discord HERE
 
     # Assuming nft_data has been populated using the fetch_all_nfts function
     nft_data_sorted = sorted(nft_data, key=lambda x: x['modified_timestamp'], reverse=True)
@@ -324,7 +335,6 @@ def main():
     config['last_nft_listing_ts'] = most_recent_timestamp
     upload_json_s3(token_id, 'nft_config.json', config)
 
+# 1693593310.673086880
 
-
-if __name__ == "__main__":
-    main()
+169359331
