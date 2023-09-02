@@ -287,6 +287,9 @@ def nft_listings(token_id, transactions):
     # Pull existing list data, merge, and re-upload
     existing_listings_df = read_df_s3(token_id, 'nft_listings.csv')
 
+    print(new_listings_df.columns)
+    print(existing_listings_df.columns)
+
     # If there's data in existing_listings_df, then merge
     if not existing_listings_df.empty:
         # Filter out entries from existing_listings_df that already exist in new_listings_df

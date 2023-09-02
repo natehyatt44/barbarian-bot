@@ -40,6 +40,9 @@ import csv
 import uuid
 from io import StringIO
 import re
+import logging
+
+logging.basicConfig(level=logging.ERROR)
 
 # set the timezone to Mountain Standard Time (MST)
 mst = pytz.timezone('US/Mountain')
