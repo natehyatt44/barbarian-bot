@@ -284,9 +284,6 @@ def nft_listings(token_id, transactions):
     # for column in columns_to_convert:
     #     new_listings_df[column] = new_listings_df[column].astype(str)
 
-    # Save the resultant DataFrame to nft_listings.csv.
-    new_listings_df.to_csv('nft_listings.csv', index=False)
-
     # Pull existing list data, merge, and re-upload
     existing_listings_df = read_df_s3(token_id, 'nft_listings.csv')
 
@@ -334,7 +331,3 @@ def execute(token_id):
     most_recent_timestamp = nft_data_sorted[0]['modified_timestamp'] if nft_data_sorted else None
     config['last_nft_listing_ts'] = most_recent_timestamp
     upload_json_s3(token_id, 'nft_config.json', config)
-
-# 1693593310.673086880
-
-169359331

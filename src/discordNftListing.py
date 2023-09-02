@@ -72,6 +72,7 @@ def upload_json_s3(token_id, filename, json_data):
 
 def discord_nft_listings(token_id, config):
     last_listing_date = config['last_discord_listings_ts']
+    print(last_listing_date)
 
     if last_listing_date:
         last_listing_timestamp = datetime.strptime(last_listing_date, '%Y-%m-%d %H:%M:%S')
