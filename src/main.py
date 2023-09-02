@@ -536,7 +536,7 @@ async def refresh_roles(interaction: discord.Interaction):
     except Exception as e:
         await interaction.response.send_message(f"An error occurred while refreshing the roles: {str(e)}")
 
-@tasks.loop(minutes=20)
+@tasks.loop(seconds=20)
 async def nft_listings():
     guild_id = 1053818243732754513  # Replace with your guild id
     channel_id = 1147282514818367628
