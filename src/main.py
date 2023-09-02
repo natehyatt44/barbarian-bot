@@ -536,10 +536,10 @@ async def refresh_roles(interaction: discord.Interaction):
     except Exception as e:
         await interaction.response.send_message(f"An error occurred while refreshing the roles: {str(e)}")
 
-@tasks.loop(seconds=20)
+@tasks.loop(minutes=15)
 async def nft_listings():
     guild_id = 1053818243732754513  # Replace with your guild id
-    channel_id = 1147282514818367628
+    channel_id = 1147404638774120448
     guild = discord.utils.get(client.guilds, id=guild_id)
     if not guild:
         print(f"Guild with id {guild_id} not found.")
@@ -560,7 +560,6 @@ async def nft_listings():
             print(f"No new listings for token {token_id}.")
             continue
         for result in results:
-            print(results)
             embed = discord.Embed(
                 title=f"New Listing!\n{result['name']} #{result['serial_number']}",
                 color=discord.Color.green()

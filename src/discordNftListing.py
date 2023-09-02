@@ -71,14 +71,14 @@ def upload_json_s3(token_id, filename, json_data):
         print("Credentials not available")
 
 def discord_nft_listings(token_id, config):
-    # last_listing_date = config['last_discord_listings_ts']
-    #
-    # if last_listing_date:
-    #     last_listing_timestamp = datetime.strptime(last_listing_date, '%Y-%m-%d %H:%M:%S')
-    # else:
-    #     last_listing_timestamp = "2023-01-01 00:00:00"
+    last_listing_date = config['last_discord_listings_ts']
 
-    last_listing_timestamp = "2023-08-25 00:00:00"
+    if last_listing_date:
+        last_listing_timestamp = datetime.strptime(last_listing_date, '%Y-%m-%d %H:%M:%S')
+    else:
+        last_listing_timestamp = "2023-01-01 00:00:00"
+
+    #last_listing_timestamp = "2023-08-25 00:00:00"
 
     # read listings csv
     df = read_df_s3(token_id, 'nft_listings.csv')
