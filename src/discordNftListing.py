@@ -78,7 +78,7 @@ def discord_nft_listings(token_id, config):
     # else:
     #     last_listing_timestamp = "2023-01-01 00:00:00"
 
-    last_listing_timestamp = "2023-01-01 00:00:00"
+    last_listing_timestamp = "2023-08-25 00:00:00"
 
     # read listings csv
     df = read_df_s3(token_id, 'nft_listings.csv')
