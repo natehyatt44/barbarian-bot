@@ -244,7 +244,7 @@ def extract_market_name(memo_decoded):
 
     if "Confirm listing of NFT:" in memo_decoded:
         return "Zuse"
-    elif "SentX Market Listing:" in memo_decoded or "Approve NFT Token" in memo_decoded:
+    elif "SentX" in memo_decoded or "Approve NFT Token" in memo_decoded:
         return "SentX"
     return None  # If no market name can be determined
 
@@ -254,13 +254,14 @@ def nft_listings(token_id, transactions):
     for transaction_block in transactions:
         txn = transaction_block['transactions'][0]
         memo_decoded = decode_memo_base64(txn['memo_base64'])
-
-        # If the decoded memo includes the word "Bulk", skip this transaction
-        if "Bulk" in memo_decoded:
-            continue
-
-        amount = extract_hbar_amount(memo_decoded)
         market_name = extract_market_name(memo_decoded)
+
+        # If the decoded memo includes the word "Bulk", since we can't pull amount put bulk listing in amount
+        if "Bulk" in memo_decoded:
+            amount = 'Bulk Listing'
+        else:
+            amount = extract_hbar_amount(memo_decoded)
+
 
         if amount:  # Only proceed if we've successfully extracted an amount
             txn_time_as_datetime = hedera_timestamp_to_datetime(txn['consensus_timestamp'])
@@ -277,33 +278,33 @@ def nft_listings(token_id, transactions):
                 'amount': amount
             })
 
-    new_listings_df = pd.DataFrame(listings)
+    if listings:
+        # listings not empty
+        new_listings_df = pd.DataFrame(listings)
 
-    # Convert the columns to string type for consistency
-    # columns_to_convert = ['account_id_seller', 'token_id', 'serial_number']
-    # for column in columns_to_convert:
-    #     new_listings_df[column] = new_listings_df[column].astype(str)
+        # Convert the columns to string type for consistency
+        # columns_to_convert = ['account_id_seller', 'token_id', 'serial_number']
+        # for column in columns_to_convert:
+        #     new_listings_df[column] = new_listings_df[column].astype(str)
 
-    # Pull existing list data, merge, and re-upload
-    existing_listings_df = read_df_s3(token_id, 'nft_listings.csv')
+        # Pull existing list data, merge, and re-upload
+        existing_listings_df = read_df_s3(token_id, 'nft_listings.csv')
 
-    print(new_listings_df.columns)
-    print(existing_listings_df.columns)
+        # If there's data in existing_listings_df, then merge
+        if not existing_listings_df.empty:
+            # Filter out entries from existing_listings_df that already exist in new_listings_df
+            existing_listings_df = existing_listings_df[~existing_listings_df['txn_id'].isin(new_listings_df['txn_id'])]
 
-    # If there's data in existing_listings_df, then merge
-    if not existing_listings_df.empty:
-        # Filter out entries from existing_listings_df that already exist in new_listings_df
-        existing_listings_df = existing_listings_df[~existing_listings_df['txn_id'].isin(new_listings_df['txn_id'])]
+            # Concatenate the two DataFrames
+            combined_df = pd.concat([new_listings_df, existing_listings_df], ignore_index=True)
+        else:
+            combined_df = new_listings_df
 
-        # Concatenate the two DataFrames
-        combined_df = pd.concat([new_listings_df, existing_listings_df], ignore_index=True)
-    else:
-        combined_df = new_listings_df
+        # If you still want to sort them (e.g., by 'txn_time' in descending order)
+        combined_df.sort_values(by='txn_time', ascending=False, inplace=True)
 
-    # If you still want to sort them (e.g., by 'txn_time' in descending order)
-    combined_df.sort_values(by='txn_time', ascending=False, inplace=True)
+        upload_df_s3(token_id, 'nft_listings.csv', combined_df)
 
-    upload_df_s3(token_id, 'nft_listings.csv', combined_df)
 
 
 def execute(token_id):

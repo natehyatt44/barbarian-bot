@@ -539,7 +539,7 @@ async def refresh_roles(interaction: discord.Interaction):
     except Exception as e:
         await interaction.response.send_message(f"An error occurred while refreshing the roles: {str(e)}")
 
-@tasks.loop(seconds=15)
+@tasks.loop(minutes=10)
 async def nft_listings():
     guild_id = 1053818243732754513  # Replace with your guild id
     channel_id = 1147404638774120448
@@ -567,12 +567,17 @@ async def nft_listings():
                 title=f"New Listing!\n{result['name']} #{result['serial_number']}",
                 color=discord.Color.green()
             )
+
             embed.set_image(url=result['image_url'])
-            embed.add_field(name="Amount", value=f"{result['amount']}ℏ", inline=True)
+            if "Bulk" in result['amount']:
+                embed.add_field(name="Amount", value=f"[Bulk Listing]({result['market_link']})", inline=True)
+            else:
+                embed.add_field(name="Amount", value=f"{result['amount']}h", inline=True)
             embed.add_field(name="Seller", value=result['account_id_seller'], inline=True)
             embed.add_field(name="Market", value=f"[{result['market_name']}]({result['market_link']})", inline=True)
             embed.add_field(name="Transaction Time", value=f"{result['txn_time']} UTC", inline=True)
             await channel.send(embed=embed)
+            await asyncio.sleep(10)
 
 
 client.run(DISCORD_BOT_TOKEN)
