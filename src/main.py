@@ -32,6 +32,7 @@ from src.moderation import (
 )
 import src.pipelineNftListing
 import src.discordNftListing
+import src.discordAdminListing
 import requests
 import datetime
 import pytz
@@ -186,6 +187,24 @@ async def on_message(message: DiscordMessage):
                 searchTerm = 'WWF Wrestling'
             gif_url = await get_gif(searchTerm)
             await message.channel.send(gif_url)
+
+        channel_id = 1068830862617096303
+
+        # checks for admin content
+        if message.channel.id == channel_id:
+            # checks for admin content
+            if message.content.lower().startswith('!cfplist'):
+                CFP = '0.0.2235264'
+                listings = src.discordAdminListing.execute(CFP)
+                top_listings = listings.head(15)
+                await message.channel.send("```" + top_listings.to_string() + "```")
+
+            # checks for admin content
+            if message.content.lower().startswith('!adlist'):
+                AD = '0.0.2371643'
+                listings = src.discordAdminListing.execute(AD)
+                top_listings = listings.head(15)
+                await message.channel.send("```" + top_listings.to_string() + "```")
 
         # checks for good mornings
         if message.content.lower().startswith('!gm') or 'bteam' in message.content.lower():
