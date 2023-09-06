@@ -573,7 +573,8 @@ async def nft_listings():
 
     CFP = '0.0.2235264'
     AD = '0.0.2371643'
-    token_ids = [CFP, AD]
+    LO = '0.0.3721853'
+    token_ids = [CFP, AD, LO]
 
     for token_id in token_ids:
         src.pipelineNftListing.execute(token_id)
