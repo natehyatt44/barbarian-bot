@@ -72,7 +72,6 @@ def upload_json_s3(token_id, filename, json_data):
 
 def discord_nft_listings(token_id, config):
     last_listing_date = config['last_discord_listings_ts']
-    print(last_listing_date)
 
     if last_listing_date:
         last_listing_timestamp = datetime.strptime(last_listing_date, '%Y-%m-%d %H:%M:%S')
@@ -83,61 +82,64 @@ def discord_nft_listings(token_id, config):
 
     # read listings csv
     df = read_df_s3(token_id, 'nft_listings.csv')
-    df['txn_time'] = pd.to_datetime(df['txn_time'])
-    # Assuming df is the dataframe obtained from read_df_s3
-    filtered_df = df[df['txn_time'] > last_listing_timestamp]
-
-    # Group by 'serial_number' and take the row with the latest timestamp
-    grouped_df = filtered_df.groupby('serial_number', group_keys=True).apply(
-        lambda x: x.sort_values('txn_time', ascending=False).iloc[0])
-
     results = []
-    for index, row in grouped_df.iterrows():
-        # Set your required variables
-        txn_time = row['txn_time']
-        account_id_seller = row['account_id_seller']
-        serial_number = row['serial_number']
-        market_name = row['market_name']
-        amount = row['amount']
 
-        # Fetch the metadata from the provided API
-        response = requests.get(f'https://mainnet-public.mirrornode.hedera.com/api/v1/tokens/{token_id}/nfts/{serial_number}')
-        data = response.json()
-        metadata = data.get('metadata')
-        if metadata:
-            cid = base64.b64decode(metadata).decode('utf-8').replace('ipfs://', '')
+    if df.empty == False:
+        df['txn_time'] = pd.to_datetime(df['txn_time'])
+        # Assuming df is the dataframe obtained from read_df_s3
+        filtered_df = df[df['txn_time'] > last_listing_timestamp]
 
-            # Fetch the IPFS content using the CID
-            response = requests.get(f'https://ipfs.io/ipfs/{cid}')
+        # Group by 'serial_number' and take the row with the latest timestamp
+        grouped_df = filtered_df.groupby('serial_number', group_keys=True).apply(
+            lambda x: x.sort_values('txn_time', ascending=False).iloc[0])
+
+
+        for index, row in grouped_df.iterrows():
+            # Set your required variables
+            txn_time = row['txn_time']
+            account_id_seller = row['account_id_seller']
+            serial_number = row['serial_number']
+            market_name = row['market_name']
+            amount = row['amount']
+
+            # Fetch the metadata from the provided API
+            response = requests.get(f'https://mainnet-public.mirrornode.hedera.com/api/v1/tokens/{token_id}/nfts/{serial_number}')
             data = response.json()
+            metadata = data.get('metadata')
+            if metadata:
+                cid = base64.b64decode(metadata).decode('utf-8').replace('ipfs://', '')
 
-            name = data['name']
-            image = data['image']
-            image = image.replace('ipfs://', '')
-            if token_id == '0.0.2371643':
-                image_url = f'{image}'
+                # Fetch the IPFS content using the CID
+                response = requests.get(f'https://ipfs.io/ipfs/{cid}')
+                data = response.json()
+
+                name = data['name']
+                image = data['image']
+                image = image.replace('ipfs://', '')
+                if token_id == '0.0.2371643':
+                    image_url = f'{image}'
+                else:
+                    image_url = f'https://ipfs.io/ipfs/{image}'
+
+                market_link = ""
+                if market_name == "SentX":
+                    market_link = f"https://sentx.io/nft-marketplace/{token_id}/{serial_number}"
+                else:
+                    market_link = f"https://zuse.market/collection/{token_id}"
+
+                results.append({
+                    "txn_time": txn_time,
+                    "account_id_seller": account_id_seller,
+                    "serial_number": serial_number,
+                    "market_name": market_name,
+                    "amount": amount,
+                    "market_link": market_link,
+                    "image_url": image_url,
+                    "name": name,
+                })
+
             else:
-                image_url = f'https://ipfs.io/ipfs/{image}'
-
-            market_link = ""
-            if market_name == "SentX":
-                market_link = f"https://sentx.io/nft-marketplace/{token_id}/{serial_number}"
-            else:
-                market_link = f"https://zuse.market/collection/{token_id}"
-
-            results.append({
-                "txn_time": txn_time,
-                "account_id_seller": account_id_seller,
-                "serial_number": serial_number,
-                "market_name": market_name,
-                "amount": amount,
-                "market_link": market_link,
-                "image_url": image_url,
-                "name": name,
-            })
-
-        else:
-            print(f"No metadata found for token_id: {token_id}, serial_number: {serial_number}")
+                print(f"No metadata found for token_id: {token_id}, serial_number: {serial_number}")
 
     return results
 
