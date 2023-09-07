@@ -30,8 +30,9 @@ from src.moderation import (
     send_moderation_blocked_message,
     send_moderation_flagged_message,
 )
-import src.discordNftListing
-import src.discordAdminListing
+import src.discordNftListing as discordNftListing
+import src.discordAdminListing as discordAdminListing
+import src.s3helper as s3helper
 import requests
 import datetime
 import pytz
@@ -41,7 +42,6 @@ import uuid
 from io import StringIO
 import re
 import logging
-import s3helper
 
 logging.basicConfig(level=logging.ERROR)
 
@@ -195,14 +195,14 @@ async def on_message(message: DiscordMessage):
             # checks for admin content
             if message.content.lower().startswith('!cfplist'):
                 CFP = '0.0.2235264'
-                listings = src.discordAdminListing.execute(CFP)
+                listings = discordAdminListing.execute(CFP)
                 top_listings = listings.head(15)
                 await message.channel.send("```" + top_listings.to_string() + "```")
 
             # checks for admin content
             if message.content.lower().startswith('!adlist'):
                 AD = '0.0.2371643'
-                listings = src.discordAdminListing.execute(AD)
+                listings = discordAdminListing.execute(AD)
                 top_listings = listings.head(15)
                 await message.channel.send("```" + top_listings.to_string() + "```")
 
@@ -577,7 +577,7 @@ async def nft_listings():
     token_ids = [CFP, AD, LO]
 
     for token_id in token_ids:
-        results = src.discordNftListing.execute(token_id)
+        results = discordNftListing.execute(token_id)
         if not results:
             print(f"No new listings for token {token_id}.")
             continue
