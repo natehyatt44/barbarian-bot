@@ -98,7 +98,7 @@ def execute(token_id):
         return
 
     # Sort the sales by txn_time in descending order
-    sales_sorted = sorted(sales, key=lambda x: x['txn_time'])
+    sales_sorted = sorted(sales, key=lambda x: x['txn_time'], reverse=True)
     # Get the most recent txn_time
     most_recent_timestamp = sales_sorted[0]['txn_time'] if sales_sorted else None
 
