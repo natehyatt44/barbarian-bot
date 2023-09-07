@@ -2,28 +2,9 @@ import json
 import boto3
 import pandas as pd
 import base64
+import s3helper
 import io
 from datetime import datetime, timedelta
-
-def read_df_s3(token_id, filename):
-    """Read a DataFrame from an S3 bucket."""
-    s3 = boto3.client('s3')
-    bucket = 'lost-ones-upload32737-staging'
-    key = f'public/data-analytics/{token_id}/{filename}'
-    try:
-        obj = s3.get_object(Bucket=bucket, Key=key)
-        data = obj['Body'].read().decode('utf-8')
-        return pd.read_csv(io.StringIO(data), delimiter='|')  # Specify delimiter here
-    except ClientError as e:
-        if e.response['Error']['Code'] == "NoSuchKey":
-            print(f"No data found for token_id {token_id} & {filename}.")
-            return pd.DataFrame()
-        else:
-            print(f"Unexpected error: {e}")
-            return pd.DataFrame()
-    except (NoCredentialsError, PartialCredentialsError):
-        print("Credentials not available")
-        return pd.DataFrame()
 
 def read_discord_users_from_s3():
     """Read the discord users from an S3 bucket into a DataFrame."""
@@ -37,7 +18,7 @@ def read_discord_users_from_s3():
 
 def execute(token_id):
 
-    nfts_df = read_df_s3(token_id, 'nft_collection.csv')
+    nfts_df = s3helper.read_df_s3(token_id, 'nft_collection.csv')
     nfts_df = nfts_df[nfts_df['spender'].notna()]
 
     discord_df = read_discord_users_from_s3()

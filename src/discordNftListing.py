@@ -3,72 +3,14 @@ import json
 import time
 from datetime import datetime, timedelta
 import csv
-import boto3
-import io
-from botocore.exceptions import NoCredentialsError, PartialCredentialsError, ClientError
 import pandas as pd
+import s3helper
 from dotenv import load_dotenv
 import os
 import base64
 import re
 from PIL import Image
 from io import BytesIO
-
-# Bucket used for processing data
-bucket = 'lost-ones-upload32737-staging'
-
-def read_json_s3(token_id, filename):
-    """Read the config JSON from an S3 bucket."""
-    s3 = boto3.client('s3')
-    key = f'public/data-analytics/{token_id}/{filename}'
-    try:
-        obj = s3.get_object(Bucket=bucket, Key=key)
-        data = obj['Body'].read().decode('utf-8')
-        return json.loads(data)
-    except ClientError as e:
-        if e.response['Error']['Code'] == "NoSuchKey":
-            print(f"No json {filename} found for token_id {token_id}.")
-            return {}  # Returning an empty dictionary for consistency
-        else:
-            print(f"Unexpected error: {e}")
-            return {}
-    except (NoCredentialsError, PartialCredentialsError):
-        print("Credentials not available")
-        return {}
-
-def read_df_s3(token_id, filename):
-    """Read a DataFrame from an S3 bucket."""
-    s3 = boto3.client('s3')
-    key = f'public/data-analytics/{token_id}/{filename}'
-    try:
-        obj = s3.get_object(Bucket=bucket, Key=key)
-        data = obj['Body'].read().decode('utf-8')
-        return pd.read_csv(io.StringIO(data), delimiter='|')  # Specify delimiter here
-    except ClientError as e:
-        if e.response['Error']['Code'] == "NoSuchKey":
-            print(f"No data found for token_id {token_id} & {filename}.")
-            return pd.DataFrame()
-        else:
-            print(f"Unexpected error: {e}")
-            return pd.DataFrame()
-    except (NoCredentialsError, PartialCredentialsError):
-        print("Credentials not available")
-        return pd.DataFrame()
-def upload_json_s3(token_id, filename, json_data):
-    """Update and save the config JSON to S3."""
-    s3 = boto3.client('s3')
-    key = f'public/data-analytics/{token_id}/{filename}'
-
-    # Convert config to JSON format
-    str_data = json.dumps(json_data)
-
-    try:
-        s3.put_object(Bucket=bucket, Key=key, Body=str_data)
-        print(f"Updated json for token_id {token_id} {filename} saved to S3.")
-    except ClientError as e:
-        print(f"Error saving updated config to S3: {e}")
-    except (NoCredentialsError, PartialCredentialsError):
-        print("Credentials not available")
 
 def discord_nft_listings(token_id, config):
     last_listing_date = config['last_discord_listings_ts']
@@ -81,7 +23,7 @@ def discord_nft_listings(token_id, config):
     #last_listing_timestamp = "2023-08-25 00:00:00"
 
     # read listings csv
-    df = read_df_s3(token_id, 'nft_listings.csv')
+    df = s3helper.read_df_s3(token_id, 'nft_listings.csv')
     results = []
 
     if df.empty == False:
@@ -145,7 +87,7 @@ def discord_nft_listings(token_id, config):
 
 def execute(token_id):
     # Pull config file
-    config = read_json_s3(token_id, 'nft_config.json')
+    config = s3helper.read_json_s3(token_id, 'nft_config.json')
     # Pull nft_data
     listings = discord_nft_listings(token_id, config)
 
@@ -158,6 +100,6 @@ def execute(token_id):
     most_recent_timestamp = listings_sorted[0]['txn_time'] if listings_sorted else None
 
     config['last_discord_listings_ts'] = most_recent_timestamp.strftime('%Y-%m-%d %H:%M:%S')
-    upload_json_s3(token_id, 'nft_config.json', config)
+    s3helper.upload_json_s3(token_id, 'nft_config.json', config)
 
     return listings

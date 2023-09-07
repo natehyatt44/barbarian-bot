@@ -30,7 +30,6 @@ from src.moderation import (
     send_moderation_blocked_message,
     send_moderation_flagged_message,
 )
-import src.pipelineNftListing
 import src.discordNftListing
 import src.discordAdminListing
 import requests
@@ -577,7 +576,6 @@ async def nft_listings():
     token_ids = [CFP, AD, LO]
 
     for token_id in token_ids:
-        src.pipelineNftListing.execute(token_id)
         results = src.discordNftListing.execute(token_id)
         if not results:
             print(f"No new listings for token {token_id}.")
