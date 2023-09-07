@@ -41,6 +41,7 @@ import uuid
 from io import StringIO
 import re
 import logging
+import s3helper
 
 logging.basicConfig(level=logging.ERROR)
 

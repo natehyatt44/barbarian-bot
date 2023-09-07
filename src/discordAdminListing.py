@@ -2,7 +2,7 @@ import json
 import boto3
 import pandas as pd
 import base64
-import s3helper
+import src.s3helper as s3helper
 import io
 from datetime import datetime, timedelta
 
