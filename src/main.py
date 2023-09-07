@@ -606,7 +606,7 @@ async def process_events(guild_id, channel_id, event_type):
         for result in results:
             await send_embed(channel, event_type, result)
 
-@tasks.loop(seconds=10)
+@tasks.loop(minutes=10)
 async def discord_nfts():
     LISTING_GUILD_ID = 1053818243732754513
     LISTING_CHANNEL_ID = 1147404638774120448
