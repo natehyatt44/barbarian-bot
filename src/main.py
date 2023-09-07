@@ -597,7 +597,7 @@ async def process_events(guild_id, channel_id, event_type):
         results = None
         if event_type == "Listing":
             results = discordNftListing.execute(token_id)
-        elif event_type == "Sale" and token_id == '0.0.2371643':
+        elif event_type == "Sale":
             results = discordNftSales.execute(token_id)
 
         if not results:
