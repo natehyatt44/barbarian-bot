@@ -31,6 +31,7 @@ from src.moderation import (
     send_moderation_flagged_message,
 )
 import src.discordNftListing as discordNftListing
+import src.discordNftSales as discordNftSales
 import src.discordAdminListing as discordAdminListing
 import src.s3helper as s3helper
 import requests
@@ -74,7 +75,7 @@ async def on_ready():
                 messages.append(m)
         completion.MY_BOT_EXAMPLE_CONVOS.append(Conversation(messages=messages))
     await tree.sync()
-    await nft_listings.start()
+    await discord_nfts.start()
 
     # Add this line to start the check_inactivity function as a background task
     #client.loop.create_task(check_inactivity())
@@ -558,45 +559,62 @@ async def refresh_roles(interaction: discord.Interaction):
     except Exception as e:
         await interaction.response.send_message(f"An error occurred while refreshing the roles: {str(e)}")
 
-@tasks.loop(minutes=10)
-async def nft_listings():
-    guild_id = 1053818243732754513  # Replace with your guild id
-    channel_id = 1147404638774120448
+TOKEN_IDS = ['0.0.2235264', '0.0.2371643', '0.0.3721853']
+async def send_embed(channel, event_type, result):
+    if event_type == "Listing":
+        title = f"New Listing!\n{result['name']} #{result['serial_number']}"
+    elif event_type == "Sale":
+        title = f"New Sale!\n{result['name']} #{result['serial_number']}"
+
+    embed = discord.Embed(title=title, color=discord.Color.green())
+    embed.set_image(url=result['image_url'])
+    if "Bulk" in str(result['amount']):
+        embed.add_field(name="Amount", value=f"[Bulk Listing]({result['market_link']})", inline=True)
+    else:
+        embed.add_field(name="Amount", value=f"{result['amount']}h", inline=True)
+    embed.add_field(name="Seller", value=result['account_id_seller'], inline=True)
+
+    if event_type == "Sale":
+        embed.add_field(name="Buyer", value=result['account_id_buyer'], inline=True)
+
+    embed.add_field(name="Market", value=f"[{result['market_name']}]({result['market_link']})", inline=True)
+    embed.add_field(name="Transaction Time", value=f"{result['txn_time']} UTC", inline=True)
+    await asyncio.sleep(10)
+    await channel.send(embed=embed)
+
+async def process_events(guild_id, channel_id, event_type):
     guild = discord.utils.get(client.guilds, id=guild_id)
     if not guild:
         print(f"Guild with id {guild_id} not found.")
         return
+
     channel = discord.utils.get(guild.channels, id=channel_id)
     if not channel:
         print(f"Channel with id {channel_id} not found in guild {guild.name}.")
         return
 
-    CFP = '0.0.2235264'
-    AD = '0.0.2371643'
-    LO = '0.0.3721853'
-    token_ids = [CFP, AD, LO]
+    for token_id in TOKEN_IDS:
+        results = None
+        if event_type == "Listing":
+            results = discordNftListing.execute(token_id)
+        elif event_type == "Sale" and token_id == '0.0.2371643':
+            results = discordNftSales.execute(token_id)
 
-    for token_id in token_ids:
-        results = discordNftListing.execute(token_id)
         if not results:
-            print(f"No new listings for token {token_id}.")
+            print(f"No new {event_type.lower()}s for token {token_id}.")
             continue
         for result in results:
-            embed = discord.Embed(
-                title=f"New Listing!\n{result['name']} #{result['serial_number']}",
-                color=discord.Color.green()
-            )
+            await send_embed(channel, event_type, result)
 
-            embed.set_image(url=result['image_url'])
-            if "Bulk" in result['amount']:
-                embed.add_field(name="Amount", value=f"[Bulk Listing]({result['market_link']})", inline=True)
-            else:
-                embed.add_field(name="Amount", value=f"{result['amount']}h", inline=True)
-            embed.add_field(name="Seller", value=result['account_id_seller'], inline=True)
-            embed.add_field(name="Market", value=f"[{result['market_name']}]({result['market_link']})", inline=True)
-            embed.add_field(name="Transaction Time", value=f"{result['txn_time']} UTC", inline=True)
-            await channel.send(embed=embed)
-            await asyncio.sleep(10)
+@tasks.loop(seconds=10)
+async def discord_nfts():
+    LISTING_GUILD_ID = 1053818243732754513
+    LISTING_CHANNEL_ID = 1147404638774120448
+    SALE_GUILD_ID = 1053818243732754513
+    SALE_CHANNEL_ID = 1107273956068704356
+
+    await process_events(LISTING_GUILD_ID, LISTING_CHANNEL_ID, "Listing")
+    await process_events(SALE_GUILD_ID, SALE_CHANNEL_ID, "Sale")
 
 
 client.run(DISCORD_BOT_TOKEN)
