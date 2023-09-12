@@ -464,7 +464,7 @@ async def process_accounts(int: discord.Interaction, account_id: str):
 
         # Prepare response based on existence check results
         if account_exists:
-            title = f"Wallet ID {account_id} already exists ({discord_username})"
+            title = f"Updated Roles for {discord_username}"
             description = f"Roles:\n{roles_str}"
             await assign_roles_to_user(int.user, assigned_roles, int.guild)
         elif username_exists:
@@ -493,7 +493,9 @@ async def assign_roles_to_user(member, role_names, guild):
         'Hbarbarian GOD',
         'Hbarbarian Chieftain',
         'Hbarbarian Berserker',
-        'Hbarbarian'
+        'Hbarbarian',
+        'Gaian Treelord',
+        'Runekin High Council'
     ]
 
     # 1. Fetch all the roles that the user currently has.
