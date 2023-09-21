@@ -564,14 +564,21 @@ async def refresh_roles(interaction: discord.Interaction):
 TOKEN_IDS = ['0.0.2235264', '0.0.2371643', '0.0.3721853']
 async def send_embed(channel, event_type, result):
     if event_type == "Listing":
-        title = f"New Listing!\n{result['name']} #{result['serial_number']}"
+        if result['txn_type'] == 'Updated Price':
+            title = f"Updated Listing Price!\n{result['name']} #{result['serial_number']}"
+        else:
+            title = f"New Listing!\n{result['name']} #{result['serial_number']}"
     elif event_type == "Sale":
         title = f"New Sale!\n{result['name']} #{result['serial_number']}"
 
     embed = discord.Embed(title=title, color=discord.Color.green())
     embed.set_image(url=result['image_url'])
-    if "Bulk" in str(result['amount']):
-        embed.add_field(name="Amount", value=f"[Bulk Listing]({result['market_link']})", inline=True)
+    if event_type == "Listing":
+        if result['txn_type'] == 'Updated Price':
+            embed.add_field(name="New Amount", value=f"{result['amount']}ℏ", inline=True)
+            embed.add_field(name="Old Amount", value=f"{int(round(result['old_amount'], 0))}ℏ", inline=True)
+        else:
+            embed.add_field(name="Amount", value=f"{result['amount']}h", inline=True)
     else:
         embed.add_field(name="Amount", value=f"{result['amount']}h", inline=True)
     embed.add_field(name="Seller", value=result['account_id_seller'], inline=True)
@@ -581,7 +588,7 @@ async def send_embed(channel, event_type, result):
 
     embed.add_field(name="Market", value=f"[{result['market_name']}]({result['market_link']})", inline=True)
     embed.add_field(name="Transaction Time", value=f"{result['txn_time']} UTC", inline=True)
-    await asyncio.sleep(10)
+    await asyncio.sleep(20)
     await channel.send(embed=embed)
 
 async def process_events(guild_id, channel_id, event_type):
@@ -617,6 +624,27 @@ async def discord_nfts():
 
     await process_events(LISTING_GUILD_ID, LISTING_CHANNEL_ID, "Listing")
     await process_events(SALE_GUILD_ID, SALE_CHANNEL_ID, "Sale")
+@tree.command(name="nftslisted", description="Retrieve Listed Accounts")
+@discord.app_commands.choices(option=[
+        discord.app_commands.Choice(name="Community Founders Pass", value="0.0.2235264"),
+        discord.app_commands.Choice(name="Alixon Airdrop", value="0.0.2371643"),
+        discord.app_commands.Choice(name="The Lost Ones", value="0.0.3721853")
+    ])
+async def admin_listed(interaction: discord.Interaction, option: discord.app_commands.Choice[str]):
+    allowed_channel_id = 1068830862617096303
+    if interaction.channel_id != allowed_channel_id:
+        await interaction.response.send_message("This command can only be used in the allowed channel", hidden=True)
+        return
+
+    try:
+        listings = discordAdminListing.execute(option.value)
+        await interaction.response.send_message(f"```{listings.head(10).to_string(index=False)}```")
+
+    except KeyError:
+        await interaction.response.send_message(f"No token ID found for {token}", hidden=True)
+    except Exception as e:
+        await interaction.response.send_message(f"An error occurred: {str(e)}", hidden=True)
+
 
 
 client.run(DISCORD_BOT_TOKEN)

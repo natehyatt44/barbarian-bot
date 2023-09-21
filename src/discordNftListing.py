@@ -39,10 +39,12 @@ def discord_nft_listings(token_id, config):
         for index, row in grouped_df.iterrows():
             # Set your required variables
             txn_time = row['txn_time']
+            txn_type = row['txn_type']
             account_id_seller = row['account_id_seller']
             serial_number = row['serial_number']
             market_name = row['market_name']
             amount = row['amount']
+            old_amount = row['old_amount']
 
             # Fetch the metadata from the provided API
             response = requests.get(f'https://mainnet-public.mirrornode.hedera.com/api/v1/tokens/{token_id}/nfts/{serial_number}')
@@ -71,10 +73,12 @@ def discord_nft_listings(token_id, config):
 
                 results.append({
                     "txn_time": txn_time,
+                    "txn_type": txn_type,
                     "account_id_seller": account_id_seller,
                     "serial_number": serial_number,
                     "market_name": market_name,
                     "amount": amount,
+                    "old_amount": old_amount,
                     "market_link": market_link,
                     "image_url": image_url,
                     "name": name,
