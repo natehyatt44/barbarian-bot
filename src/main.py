@@ -558,7 +558,6 @@ async def refresh_roles(interaction: discord.Interaction):
                 continue
 
             await assign_roles_to_user(member, assigned_roles, interaction.guild)
-            await interaction.response.send_message(f"{member} - Roles Refreshed!")
 
     except Exception as e:
         await interaction.response.send_message(f"An error occurred while refreshing the roles: {str(e)}")
