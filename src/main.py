@@ -554,14 +554,16 @@ async def refresh_roles(interaction: discord.Interaction):
 
             print (assigned_roles)
             # Assign roles to the user
-            await assign_roles_to_user(member, assigned_roles, interaction.guild)
+            if member is None:
+                continue
 
-        await interaction.response.send_message("All roles have been refreshed!")
+            await assign_roles_to_user(member, assigned_roles, interaction.guild)
+            await interaction.response.send_message(f"{member} - Roles Refreshed!")
 
     except Exception as e:
         await interaction.response.send_message(f"An error occurred while refreshing the roles: {str(e)}")
 
-TOKEN_IDS = ['0.0.2235264', '0.0.2371643', '0.0.3721853']
+TOKEN_IDS = ['0.0.2235264', '0.0.2371643', '0.0.3721853', '0.0.3954030']
 async def send_embed(channel, event_type, result):
     if event_type == "Listing":
         if result['txn_type'] == 'Updated Price':
@@ -644,6 +646,64 @@ async def admin_listed(interaction: discord.Interaction, option: discord.app_com
         await interaction.response.send_message(f"No token ID found for {token}", hidden=True)
     except Exception as e:
         await interaction.response.send_message(f"An error occurred: {str(e)}", hidden=True)
+
+
+@tree.command(name="submitmortal", description="Input your Wallet ID and Serial Number of NFT")
+async def admin_listed(interaction: discord.Interaction, wallet_id: str, serial_number: str):
+    allowed_channel_id = 1068830862617096303
+    if interaction.channel_id != allowed_channel_id:
+        await interaction.response.send_message("This command can only be used in the allowed channel", hidden=True)
+        return
+
+    try:
+        # Initialize boto3 client for S3
+        s3 = boto3.client('s3')
+        bucket_name = 'lost-ones-upload32737-staging'
+        object_key = 'public/discordAccounts/mortalChallenge.csv'
+
+        # Fetch the existing CSV data
+        try:
+            response = s3.get_object(Bucket=bucket_name, Key=object_key)
+            csv_content = response['Body'].read().decode('utf-8')
+            csv_reader = csv.reader(StringIO(csv_content), delimiter='|')
+            existing_data = {row[1]: row for row in csv_reader}  # Keyed by Discord Name for easier lookup
+        except Exception as e:
+            existing_data = {}
+
+        discord_name = interaction.user.name
+        print(interaction.user.roles)
+
+        max_entries = 1
+        for role in interaction.user.roles:
+            if role == 'Hbarbarian Berserker' or role == "Hbarbarian Chieftain" or role == "Hbarbarian GOD":
+                max_entries = 2
+                break
+
+        user_entries = existing_data.get(discord_name, [])
+        print (len(user_entries))
+
+        if len(user_entries) >= max_entries:
+            await interaction.response.send_message("You have reached your limit for adding serial numbers.")
+            return
+
+        # Update CSV with new data
+        user_entries.append([wallet_id, discord_name, serial_number])
+        existing_data[discord_name] = user_entries
+
+        # Convert the updated data back to CSV format
+        csv_out = StringIO()
+        csv_writer = csv.writer(csv_out, delimiter='|')
+        for entries in existing_data.values():
+            for entry in entries:
+                csv_writer.writerow(entry)
+
+        # Upload the updated CSV to S3
+        s3.put_object(Bucket=bucket_name, Key=object_key, Body=csv_out.getvalue())
+
+        await interaction.response.send_message("Your serial number has been added successfully!")
+
+    except Exception as e:
+        await interaction.response.send_message(f"An error occurred: {str(e)}")
 
 
 
