@@ -52,6 +52,7 @@ def discord_nft_listings(token_id, config):
             metadata = data.get('metadata')
             if metadata:
                 cid = base64.b64decode(metadata).decode('utf-8').replace('ipfs://', '')
+                print(cid)
 
                 # Fetch the IPFS content using the CID
                 response = requests.get(f'https://ipfs.io/ipfs/{cid}')
@@ -64,6 +65,8 @@ def discord_nft_listings(token_id, config):
                     image_url = f'{image}'
                 else:
                     image_url = f'https://ipfs.io/ipfs/{image}'
+                    print(image_url)
+
 
                 market_link = ""
                 if market_name == "SentX":

@@ -564,33 +564,46 @@ async def refresh_roles(interaction: discord.Interaction):
 
 TOKEN_IDS = ['0.0.2235264', '0.0.2371643', '0.0.3721853', '0.0.3954030']
 async def send_embed(channel, event_type, result):
-    if event_type == "Listing":
-        if result['txn_type'] == 'Updated Price':
-            title = f"Updated Listing Price!\n{result['name']} #{result['serial_number']}"
-        else:
-            title = f"New Listing!\n{result['name']} #{result['serial_number']}"
-    elif event_type == "Sale":
-        title = f"New Sale!\n{result['name']} #{result['serial_number']}"
+    max_retries = 3  # maximum number of retries
+    retry_delay = 5  # seconds to wait between retries
 
-    embed = discord.Embed(title=title, color=discord.Color.green())
-    embed.set_image(url=result['image_url'])
-    if event_type == "Listing":
-        if result['txn_type'] == 'Updated Price':
-            embed.add_field(name="New Amount", value=f"{result['amount']}ℏ", inline=True)
-            embed.add_field(name="Old Amount", value=f"{int(round(result['old_amount'], 0))}ℏ", inline=True)
-        else:
-            embed.add_field(name="Amount", value=f"{result['amount']}h", inline=True)
-    else:
-        embed.add_field(name="Amount", value=f"{result['amount']}h", inline=True)
-    embed.add_field(name="Seller", value=result['account_id_seller'], inline=True)
+    for attempt in range(max_retries):
+        try:
+            if event_type == "Listing":
+                if result['txn_type'] == 'Updated Price':
+                    title = f"Updated Listing Price!\n{result['name']} #{result['serial_number']}"
+                else:
+                    title = f"New Listing!\n{result['name']} #{result['serial_number']}"
+            elif event_type == "Sale":
+                title = f"New Sale!\n{result['name']} #{result['serial_number']}"
 
-    if event_type == "Sale":
-        embed.add_field(name="Buyer", value=result['account_id_buyer'], inline=True)
+            embed = discord.Embed(title=title, color=discord.Color.green())
+            embed.set_image(url=result['image_url'])
+            if event_type == "Listing":
+                if result['txn_type'] == 'Updated Price':
+                    embed.add_field(name="New Amount", value=f"{result['amount']}ℏ", inline=True)
+                    embed.add_field(name="Old Amount", value=f"{int(round(result['old_amount'], 0))}ℏ", inline=True)
+                else:
+                    embed.add_field(name="Amount", value=f"{result['amount']}h", inline=True)
+            else:
+                embed.add_field(name="Amount", value=f"{result['amount']}h", inline=True)
+            embed.add_field(name="Seller", value=result['account_id_seller'], inline=True)
 
-    embed.add_field(name="Market", value=f"[{result['market_name']}]({result['market_link']})", inline=True)
-    embed.add_field(name="Transaction Time", value=f"{result['txn_time']} UTC", inline=True)
-    await asyncio.sleep(20)
-    await channel.send(embed=embed)
+            if event_type == "Sale":
+                embed.add_field(name="Buyer", value=result['account_id_buyer'], inline=True)
+
+            embed.add_field(name="Market", value=f"[{result['market_name']}]({result['market_link']})", inline=True)
+            embed.add_field(name="Transaction Time", value=f"{result['txn_time']} UTC", inline=True)
+            await asyncio.sleep(20)
+            await channel.send(embed=embed)
+            break
+        except Exception as e:
+            print(f"Error sending embed: {e}")
+            if attempt < max_retries - 1:
+                print(f"Retrying in {retry_delay} seconds...")
+                await asyncio.sleep(retry_delay)
+            else:
+                print("Failed to send embed after multiple attempts.")
 
 async def process_events(guild_id, channel_id, event_type):
     guild = discord.utils.get(client.guilds, id=guild_id)
