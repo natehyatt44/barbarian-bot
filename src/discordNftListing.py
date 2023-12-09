@@ -46,41 +46,36 @@ def discord_nft_listings(token_id, config):
             amount = row['amount']
             old_amount = row['old_amount']
 
-            # Fetch the metadata from the provided API
-            response = requests.get(f'https://mainnet-public.mirrornode.hedera.com/api/v1/tokens/{token_id}/nfts/{serial_number}')
-            data = response.json()
-            metadata = data.get('metadata')
-            if metadata:
-                cid = base64.b64decode(metadata).decode('utf-8').replace('ipfs://', '')
+            name = ''
+            if token_id == '0.0.2235264':
+                name = 'Community Founders Pass'
+            if token_id == '0.0.2371643':
+                name = 'The Alixon Collection'
+            if token_id == '0.0.3721853':
+                name = 'The Lost Ones'
+            if token_id == '0.0.3954030':
+                name = 'TrizTazz - Collection 1 : 1'
 
-                # Fetch the IPFS content using the CID
-                response = requests.get(f'https://ipfs.io/ipfs/{cid}')
-                data = response.json()
+            image_url = f'https://lost-ones-upload32737-staging.s3.amazonaws.com/public/data-analytics/{token_id}/images/{serial_number}.webp'
 
-                name = data['name']
-                image_url = f'https://lost-ones-upload32737-staging.s3.amazonaws.com/public/data-analytics/{token_id}/images/{serial_number}.webp'
-
-                market_link = ""
-                if market_name == "SentX":
-                    market_link = f"https://sentx.io/nft-marketplace/{token_id}/{serial_number}"
-                else:
-                    market_link = f"https://zuse.market/collection/{token_id}"
-
-                results.append({
-                    "txn_time": txn_time,
-                    "txn_type": txn_type,
-                    "account_id_seller": account_id_seller,
-                    "serial_number": serial_number,
-                    "market_name": market_name,
-                    "amount": amount,
-                    "old_amount": old_amount,
-                    "market_link": market_link,
-                    "image_url": image_url,
-                    "name": name,
-                })
-
+            market_link = ""
+            if market_name == "SentX":
+                market_link = f"https://sentx.io/nft-marketplace/{token_id}/{serial_number}"
             else:
-                print(f"No metadata found for token_id: {token_id}, serial_number: {serial_number}")
+                market_link = f"https://zuse.market/collection/{token_id}"
+
+            results.append({
+                "txn_time": txn_time,
+                "txn_type": txn_type,
+                "account_id_seller": account_id_seller,
+                "serial_number": serial_number,
+                "market_name": market_name,
+                "amount": amount,
+                "old_amount": old_amount,
+                "market_link": market_link,
+                "image_url": image_url,
+                "name": name,
+            })
 
     return results
 

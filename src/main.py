@@ -495,7 +495,10 @@ async def assign_roles_to_user(member, role_names, guild):
         'Hbarbarian Berserker',
         'Hbarbarian',
         'Gaian Treelord',
-        'Runekin High Council'
+        'Runekin High Council',
+        'Soulweaver Seer',
+        'Zephyr Ace',
+        'ArchAngel Guardian'
     ]
 
     # 1. Fetch all the roles that the user currently has.
