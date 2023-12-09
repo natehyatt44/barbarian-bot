@@ -52,21 +52,13 @@ def discord_nft_listings(token_id, config):
             metadata = data.get('metadata')
             if metadata:
                 cid = base64.b64decode(metadata).decode('utf-8').replace('ipfs://', '')
-                print(cid)
 
                 # Fetch the IPFS content using the CID
                 response = requests.get(f'https://ipfs.io/ipfs/{cid}')
                 data = response.json()
 
                 name = data['name']
-                image = data['image']
-                image = image.replace('ipfs://', '')
-                if token_id == '0.0.2371643':
-                    image_url = f'{image}'
-                else:
-                    image_url = f'https://ipfs.io/ipfs/{image}'
-                    print(image_url)
-
+                image_url = f'https://lost-ones-upload32737-staging.s3.amazonaws.com/public/data-analytics/{token_id}/images/{serial_number}.webp'
 
                 market_link = ""
                 if market_name == "SentX":

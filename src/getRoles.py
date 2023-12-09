@@ -38,7 +38,7 @@ def match_nfts_to_discord_helper(nfts):
 
             # Matching logic
             for helper_item in discord_helper:
-                if helper_item['serialNumber'] == serial_number and helper_item['tokenId'] == token_id:
+                if helper_item['serial_number'] == serial_number and helper_item['tokenId'] == token_id:
 
                     matched_record = {
                         'token_id': helper_item['tokenId'],
@@ -60,6 +60,9 @@ def determine_roles(matched_records):
     mortal_count = sum(1 for record in matched_records if record.get('race', 'Mortal') == 'Mortal')
     gaian_count = sum(1 for record in matched_records if record.get('race') == 'Gaian')
     runekin_count = sum(1 for record in matched_records if record.get('race') == 'Runekin')
+    soulweaver_count = sum(1 for record in matched_records if record.get('race') == 'Soulweaver')
+    zephyr_count = sum(1 for record in matched_records if record.get('race') == 'Zephyr')
+    archangel_count = sum(1 for record in matched_records if record.get('race') == 'ArchAngel')
 
     # Check for Zombie/Spirit first
     if any(record.get('isZombieSpirit') == 1 for record in matched_records):
@@ -80,6 +83,12 @@ def determine_roles(matched_records):
         roles.append('Gaian Treelord')
     if runekin_count >= 10:
         roles.append('Runekin High Council')
+    if soulweaver_count >= 10:
+        roles.append('Soulweaver Seer')
+    if zephyr_count >= 10:
+        roles.append('Zephyr Ace')
+    if archangel_count >= 3:
+        roles.append('ArchAngel Guardian')
 
     return roles
 
