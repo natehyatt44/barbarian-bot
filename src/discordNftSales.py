@@ -55,6 +55,8 @@ def discord_nft_sales(token_id, config):
                 name = 'The Lost Ones'
             if token_id == '0.0.3954030':
                 name = 'TrizTazz - Collection 1 : 1'
+            if token_id == '0.0.4350721':
+                name = 'The Tools'
 
             image_url = f'https://lost-ones-upload32737-staging.s3.amazonaws.com/public/data-analytics/{token_id}/images/{serial_number}.webp'
 
