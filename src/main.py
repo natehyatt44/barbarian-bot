@@ -565,7 +565,7 @@ async def refresh_roles(interaction: discord.Interaction):
     except Exception as e:
         await interaction.response.send_message(f"An error occurred while refreshing the roles: {str(e)}")
 
-TOKEN_IDS = ['0.0.2235264', '0.0.2371643', '0.0.3721853', '0.0.5102420', '0.0.4849512']
+TOKEN_IDS = ['0.0.2235264', '0.0.2371643', '0.0.3721853']
 async def send_embed(channel, event_type, result):
     max_retries = 3  # maximum number of retries
     retry_delay = 5  # seconds to wait between retries
